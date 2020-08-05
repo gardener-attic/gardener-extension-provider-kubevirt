@@ -102,6 +102,8 @@ github.com/gardener/gardener/pkg/client/core/listers/core/v1beta1
 github.com/gardener/gardener/pkg/client/extensions/clientset/versioned/scheme
 github.com/gardener/gardener/pkg/client/kubernetes
 github.com/gardener/gardener/pkg/logger
+github.com/gardener/gardener/pkg/mock/controller-runtime/client
+github.com/gardener/gardener/pkg/mock/gardener/client/kubernetes
 github.com/gardener/gardener/pkg/operation/common
 github.com/gardener/gardener/pkg/utils
 github.com/gardener/gardener/pkg/utils/chart
@@ -201,6 +203,7 @@ github.com/gogo/protobuf/vanity/command
 github.com/golang/groupcache/lru
 # github.com/golang/mock v1.4.3
 ## explicit
+github.com/golang/mock/gomock
 github.com/golang/mock/mockgen
 github.com/golang/mock/mockgen/model
 # github.com/golang/protobuf v1.4.2
