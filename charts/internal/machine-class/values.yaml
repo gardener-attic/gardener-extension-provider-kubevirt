@@ -1,0 +1,14 @@
+machineClasses:
+- name: class-1
+  secret:
+    cloudConfig: abc
+    kubeconfig: abc
+  tags:
+  - kubernetes.io/cluster/foo
+  - kubernetes.io/role/node
+  storageClassName: standard
+  pvcSize: "10Gi"
+  sourceURL: source-image-url
+  cpus: "1"
+  memory: "4096M"
+  namespace: default
