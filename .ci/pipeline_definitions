@@ -1,0 +1,12 @@
+gardener-extension-provider-kubevirt:
+  jobs:
+    head-update:
+      steps:
+        verify:
+          image: 'golang:1.14.4'
+    pull-request:
+      steps:
+        verify:
+          image: 'golang:1.14.4'
+      traits:
+        pull-request: ~
