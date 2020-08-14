@@ -30,6 +30,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+const KubeconfigSecretKey = "kubeconfig"
+
 // MachineClassKind yields the name of the KubeVirt machine class.
 func (w *workerDelegate) MachineClassKind() string {
 	return "MachineClass"
@@ -64,20 +66,18 @@ func (w *workerDelegate) GenerateMachineDeployments(ctx context.Context) (worker
 }
 
 func (w *workerDelegate) generateMachineClassSecretData(ctx context.Context) (map[string][]byte, error) {
-	const kubeconfigKey = "kubeconfig"
-
 	secret, err := extensionscontroller.GetSecretByReference(ctx, w.Client(), &w.worker.Spec.SecretRef)
 	if err != nil {
 		return nil, err
 	}
 
-	kubeconfig, ok := secret.Data[kubeconfigKey]
+	kubeconfig, ok := secret.Data[KubeconfigSecretKey]
 	if !ok {
-		return nil, fmt.Errorf("missing %q field in secret", kubeconfigKey)
+		return nil, fmt.Errorf("missing %q field in secret", KubeconfigSecretKey)
 	}
 
 	return map[string][]byte{
-		"kubeconfig": kubeconfig,
+		KubeconfigSecretKey: kubeconfig,
 	}, nil
 }
 
@@ -140,7 +140,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			},
 			"secret": map[string]interface{}{
 				"cloudConfig": string(pool.UserData),
-				"kubeconfig":  string(secretData["kubeconfig"]),
+				"kubeconfig":  string(secretData[KubeconfigSecretKey]),
 			},
 		})
 
