@@ -16,28 +16,28 @@ apiVersion: machine.sapcloud.io/v1alpha1
 kind: MachineClass
 metadata:
   name: {{ $machineClass.name }}
-  namespace: {{ $.Release.Namespace }}
+  namespace: "{{ $.Release.Namespace }}"
 providerSpec:
 {{- if $machineClass.storageClassName }}
-  storageClassName: {{ $machineClass.storageClassName }}
+  storageClassName: "{{ $machineClass.storageClassName }}"
 {{ end }}
 {{- if $machineClass.pvcSize }}
-  pvcSize: {{ $machineClass.pvcSize }}
+  pvcSize: "{{ $machineClass.pvcSize }}"
 {{ end }}
 {{- if $machineClass.sourceURL }}
-  sourceURL: {{ $machineClass.sourceURL }}
+  sourceURL: "{{ $machineClass.sourceURL }}"
 {{ end }}
 {{- if $machineClass.cpus }}
-  cpus: {{ $machineClass.cpus }}
+  cpus: "{{ $machineClass.cpus }}"
 {{ end }}
 {{- if $machineClass.memory }}
-  memory: {{ $machineClass.memory }}
+  memory: "{{ $machineClass.memory }}"
 {{ end }}
 {{- if $machineClass.namespace }}
-  namespace: {{ $machineClass.namespace }}
+  namespace: "{{ $machineClass.namespace }}"
 {{ end }}
 secretRef:
-  name: {{ $machineClass.name }}
-  namespace: {{ $.Release.Namespace }}
+  name: "{{ $machineClass.name }}"
+  namespace: "{{ $.Release.Namespace }}"
 provider: kubevirtdriver//127.0.0.1:8080
 {{- end }}
