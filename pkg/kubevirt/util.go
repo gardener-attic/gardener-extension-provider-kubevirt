@@ -12,25 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package infrastructure
+package kubevirt
 
 import (
-	"github.com/gardener/gardener/extensions/pkg/controller/common"
-	"github.com/gardener/gardener/extensions/pkg/controller/infrastructure"
-	"github.com/go-logr/logr"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	"context"
+
+	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
+	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type actuator struct {
-	common.ChartRendererContext
-
-	logger logr.Logger
-}
-
-// NewActuator creates a new Actuator that updates the status of the handled Infrastructure resources.
-func NewActuator() infrastructure.Actuator {
-
-	return &actuator{
-		logger: log.Log.WithName("infrastructure-actuator"),
+// GetKubeConfig retrieves the kubeconfig specified by the secret reference.
+func GetKubeConfig(ctx context.Context, c client.Client, secretRef corev1.SecretReference) ([]byte, error) {
+	secret, err := extensionscontroller.GetSecretByReference(ctx, c, &secretRef)
+	if err != nil {
+		return []byte(""), err
 	}
+
+	return secret.Data["kubeconfig"], nil
 }

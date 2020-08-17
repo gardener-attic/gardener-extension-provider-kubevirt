@@ -6,4 +6,8 @@ images:
 - name: machine-controller-manager-provider-kubevirt
   sourceRepository: github.com/gardener/machine-controller-manager-provider-kubevirt
   repository: eu.gcr.io/gardener-project/gardener/machine-controller-manager-provider-kubevirt
-  tag: latest
+  tag: "v0.1.0"
+- name: cloud-controller-manager
+  sourceRepository: https://github.com/kubevirt/cloud-provider-kubevirt
+  repository: eu.gcr.io/gardener-project/gardener/kubevirt-cloud-controller-manager
+  tag: "v0.0.8"

@@ -21,6 +21,14 @@ import (
 const (
 	// Name is the name of the KubeVirt provider controller.
 	Name = "provider-kubevirt"
+
+	// CloudControllerManagerImageName is the name of the cloud-controller-manager image.
+	CloudControllerManagerImageName = "cloud-controller-manager"
+
+	// CloudProviderConfigName is the name of the secret containing the cloud provider config.
+	CloudProviderConfigName = "cloud-provider-config"
+	// CloudControllerManagerName is a constant for the name of the cloud-controller-manager.
+	CloudControllerManagerName = "cloud-controller-manager"
 	// MachineControllerManagerName is a constant for the name of the machine-controller-manager.
 	MachineControllerManagerName = "machine-controller-manager"
 	// MachineControllerManagerImageName is the name of the MachineControllerManager image.

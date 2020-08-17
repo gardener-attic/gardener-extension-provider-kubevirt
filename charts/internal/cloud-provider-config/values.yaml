@@ -1,0 +1,9 @@
+kubeconfig: abc
+loadBalancer:
+  enabled: true
+  creationPollInterval: 5
+instances:
+  enabled: true
+  enableInstanceTypes: false
+zones:
+  enabled: true

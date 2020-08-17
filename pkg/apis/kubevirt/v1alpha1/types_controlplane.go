@@ -24,4 +24,15 @@ import (
 // ControlPlaneConfig contains configuration settings for the control plane.
 type ControlPlaneConfig struct {
 	metav1.TypeMeta `json:",inline"`
+
+	// CloudControllerManager contains configuration settings for the cloud-controller-manager.
+	// +optional
+	CloudControllerManager *CloudControllerManagerConfig `json:"cloudControllerManager,omitempty"`
+}
+
+// CloudControllerManagerConfig contains configuration settings for the cloud-controller-manager.
+type CloudControllerManagerConfig struct {
+	// FeatureGates contains information about enabled feature gates.
+	// +optional
+	FeatureGates map[string]bool `json:"featureGates,omitempty"`
 }
