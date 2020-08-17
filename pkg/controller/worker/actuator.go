@@ -19,40 +19,48 @@ import (
 
 	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/helper"
-	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/imagevector"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
 
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/extensions/pkg/controller/common"
 	"github.com/gardener/gardener/extensions/pkg/controller/worker"
 	"github.com/gardener/gardener/extensions/pkg/controller/worker/genericactuator"
-	"github.com/gardener/gardener/extensions/pkg/util"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	gardener "github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/go-logr/logr"
 	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// NewActuator creates a new Actuator that updates the status of the handled WorkerPoolConfigs.
-func NewActuator() worker.Actuator {
-	delegateFactory := &delegateFactory{
-		logger: log.Log.WithName("worker-actuator"),
-	}
+const clusterLabel = "kubevirt.provider.extensions.gardener.cloud/cluster"
 
-	return genericactuator.NewActuator(
-		log.Log.WithName("kubevirt-worker-actuator"),
-		delegateFactory,
-		kubevirt.MachineControllerManagerName,
-		mcmChart,
-		mcmShootChart,
-		imagevector.ImageVector(),
-		extensionscontroller.ChartRendererFactoryFunc(util.NewChartRendererForShoot),
-	)
+var workerLogger = log.Log.WithName("kubevirt-worker-actuator")
+
+// actuator is an Actuator that acts upon and updates the status of worker resources.
+type actuator struct {
+	worker.Actuator
+
+	dataVolumeManager kubevirt.DataVolumeManager
+	client            client.Client
+	logger            logr.Logger
+}
+
+// NewActuator creates a new Actuator that updates the status of the handled WorkerPoolConfigs.
+func NewActuator(workerActuator worker.Actuator, client client.Client, logger logr.Logger,
+	dataVolumeManager kubevirt.DataVolumeManager) worker.Actuator {
+
+	return &actuator{
+		Actuator:          workerActuator,
+		logger:            logger,
+		dataVolumeManager: dataVolumeManager,
+		client:            client,
+	}
 }
 
 type delegateFactory struct {
-	logger logr.Logger
+	logger            logr.Logger
+	dataVolumeManager kubevirt.DataVolumeManager
 	common.RESTConfigContext
 }
 
@@ -79,6 +87,7 @@ func (d *delegateFactory) WorkerDelegate(ctx context.Context, worker *extensions
 
 		worker,
 		cluster,
+		d.dataVolumeManager,
 	)
 }
 
@@ -95,6 +104,8 @@ type workerDelegate struct {
 	machineClasses     []map[string]interface{}
 	machineDeployments worker.MachineDeployments
 	machineImages      []apiskubevirt.MachineImage
+
+	dataVolumeManager kubevirt.DataVolumeManager
 }
 
 // NewWorkerDelegate creates a new context for a worker reconciliation.
@@ -106,6 +117,7 @@ func NewWorkerDelegate(
 
 	worker *extensionsv1alpha1.Worker,
 	cluster *extensionscontroller.Cluster,
+	dataVolumeManager kubevirt.DataVolumeManager,
 ) (genericactuator.WorkerDelegate, error) {
 	var cloudProfileConfig *apiskubevirt.CloudProfileConfig
 	var err error
@@ -125,5 +137,6 @@ func NewWorkerDelegate(
 		cloudProfileConfig: cloudProfileConfig,
 		cluster:            cluster,
 		worker:             worker,
+		dataVolumeManager:  dataVolumeManager,
 	}, nil
 }

@@ -48,20 +48,24 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/pointer"
+	cdi "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("Machines", func() {
 	var (
-		ctrl         *gomock.Controller
-		c            *mockclient.MockClient
-		chartApplier *mockkubernetes.MockChartApplier
+		ctrl           *gomock.Controller
+		c              *mockclient.MockClient
+		chartApplier   *mockkubernetes.MockChartApplier
+		providerClient *mockclient.MockClient
 	)
 
 	BeforeEach(func() {
 		ctrl = gomock.NewController(GinkgoT())
 
 		c = mockclient.NewMockClient(ctrl)
+		providerClient = mockclient.NewMockClient(ctrl)
 		chartApplier = mockkubernetes.NewMockChartApplier(ctrl)
 	})
 
@@ -69,8 +73,12 @@ var _ = Describe("Machines", func() {
 		ctrl.Finish()
 	})
 
+	mockProviderClient := func(kubeconfig []byte) (client.Client, string, error) {
+		return providerClient, "", nil
+	}
+
 	Context("with workerDelegate", func() {
-		workerDelegate, _ := NewWorkerDelegate(common.NewClientContext(nil, nil, nil), nil, "", nil, nil)
+		workerDelegate, _ := NewWorkerDelegate(common.NewClientContext(nil, nil, nil), nil, "", nil, nil, nil)
 
 		Describe("#MachineClassKind", func() {
 			It("should return the correct kind of the machine class", func() {
@@ -90,6 +98,8 @@ var _ = Describe("Machines", func() {
 				decoder                          runtime.Decoder
 				cluster                          *extensionscontroller.Cluster
 				workerPoolHash1, workerPoolHash2 string
+				dataVolumeManager                kubevirt.DataVolumeManager
+				err                              error
 			)
 
 			namespace := "shoot--dev--kubevirt-1"
@@ -179,6 +189,11 @@ var _ = Describe("Machines", func() {
 				},
 			}
 
+			It("should return a data volume manager", func() {
+				dataVolumeManager, err = kubevirt.NewDefaultDataVolumeManager(kubevirt.ClientFactoryFunc(mockProviderClient))
+				Expect(err).NotTo(HaveOccurred())
+			})
+
 			BeforeEach(func() {
 				scheme = runtime.NewScheme()
 				_ = api.AddToScheme(scheme)
@@ -189,8 +204,7 @@ var _ = Describe("Machines", func() {
 
 				workerPoolHash1, _ = worker.WorkerPoolHash(w.Spec.Pools[0], cluster)
 				workerPoolHash2, _ = worker.WorkerPoolHash(w.Spec.Pools[1], cluster)
-
-				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster)
+				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, dataVolumeManager)
 			})
 
 			It("should return the expected machine deployments", func() {
@@ -248,6 +262,8 @@ var _ = Describe("Machines", func() {
 						}}),
 					).
 					Return(nil)
+
+				generateKubeVirtDataVolumes(providerClient)
 
 				By("comparing machine classes")
 				err := workerDelegate.DeployMachineClasses(context.TODO())
@@ -332,7 +348,7 @@ var _ = Describe("Machines", func() {
 				By("creating a cluster without images")
 				cluster := createCluster(cloudProfileName, shootVersion, imagesOutOfConfig)
 
-				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster)
+				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, dataVolumeManager)
 
 				result, err := workerDelegate.GenerateMachineDeployments(context.TODO())
 				Expect(err).To(HaveOccurred())
@@ -355,7 +371,7 @@ var _ = Describe("Machines", func() {
 					NodeConditions:         testNodeConditions,
 				}
 
-				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster)
+				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, dataVolumeManager)
 
 				result, err := workerDelegate.GenerateMachineDeployments(context.TODO())
 				resultSettings := result[0].MachineConfiguration
@@ -397,7 +413,34 @@ func generateKubeVirtSecret(c *mockclient.MockClient) {
 				kubevirt.KubeconfigSecretKey: []byte(kubeconfig),
 			}
 			return nil
-		})
+		}).AnyTimes()
+}
+
+func generateKubeVirtDataVolumes(providerClient *mockclient.MockClient) {
+	providerClient.
+		EXPECT().
+		Get(context.TODO(), gomock.Any(), gomock.AssignableToTypeOf(&cdi.DataVolume{})).
+		DoAndReturn(func(_ context.Context, _ client.ObjectKey, dataVolume *cdi.DataVolume) error {
+			dataVolume.Spec = cdi.DataVolumeSpec{
+				PVC: &corev1.PersistentVolumeClaimSpec{
+					StorageClassName: pointer.StringPtr("standard"),
+					AccessModes: []corev1.PersistentVolumeAccessMode{
+						"ReadWriteOnce",
+					},
+				},
+				Source: cdi.DataVolumeSource{
+					HTTP: &cdi.DataVolumeSourceHTTP{
+						URL: "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img",
+					},
+				},
+			}
+			return nil
+		}).AnyTimes()
+
+	providerClient.
+		EXPECT().
+		Update(context.TODO(), gomock.Any(), gomock.Any()).
+		AnyTimes()
 }
 
 func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, cpu, memory string, sshPublicKey []byte, networkName string) map[string]interface{} {

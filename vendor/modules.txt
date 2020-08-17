@@ -323,6 +323,9 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
+# github.com/openshift/custom-resource-status v0.0.0-20200602122900-c002fd1547ca
+## explicit
+github.com/openshift/custom-resource-status/conditions/v1
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
@@ -838,6 +841,10 @@ k8s.io/utils/buffer
 k8s.io/utils/integer
 k8s.io/utils/pointer
 k8s.io/utils/trace
+# kubevirt.io/containerized-data-importer v1.10.6
+## explicit
+kubevirt.io/containerized-data-importer/pkg/apis/core
+kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1
 # sigs.k8s.io/controller-runtime v0.5.5
 ## explicit
 sigs.k8s.io/controller-runtime

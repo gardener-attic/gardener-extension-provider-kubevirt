@@ -28,7 +28,12 @@ import (
 	corev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	machinev1alpha1 "github.com/gardener/machine-controller-manager/pkg/apis/machine/v1alpha1"
+	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/pointer"
+	cdi "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
 // MachineClassKind yields the name of the KubeVirt machine class.
@@ -48,10 +53,54 @@ func (w *workerDelegate) DeployMachineClasses(ctx context.Context) error {
 			return err
 		}
 	}
-	return w.seedChartApplier.Apply(
+
+	if err := w.seedChartApplier.Apply(
 		ctx, filepath.Join(kubevirt.InternalChartsPath, "machine-class"), w.worker.Namespace, "machine-class",
 		kubernetes.Values(map[string]interface{}{"machineClasses": w.machineClasses}),
-	)
+	); err != nil {
+		return errors.Wrap(err, "could not apply machine-class chart")
+	}
+
+	dataVolumeLabels := map[string]string{
+		clusterLabel: w.worker.Namespace,
+	}
+
+	kubeconfig, err := kubevirt.GetKubeConfig(ctx, w.Client(), w.worker.Spec.SecretRef)
+	if err != nil {
+		return errors.Wrap(err, "could not get the kubeconfig of the kubevirt cluster")
+	}
+
+	for _, machineClass := range w.machineClasses {
+		var (
+			storageClassName = pointer.StringPtr(machineClass["storageClassName"].(string))
+			pvcSize          = v1.ResourceList{v1.ResourceStorage: machineClass["pvcSize"].(resource.Quantity)}
+			sourceUrl        = machineClass["sourceURL"].(string)
+			machineClassName = machineClass["name"].(string)
+		)
+
+		dataVolumeSpec := cdi.DataVolumeSpec{
+			PVC: &v1.PersistentVolumeClaimSpec{
+				StorageClassName: storageClassName,
+				AccessModes: []v1.PersistentVolumeAccessMode{
+					"ReadWriteOnce",
+				},
+				Resources: v1.ResourceRequirements{
+					Requests: pvcSize,
+				},
+			},
+			Source: cdi.DataVolumeSource{
+				HTTP: &cdi.DataVolumeSourceHTTP{
+					URL: sourceUrl,
+				},
+			},
+		}
+
+		if err := w.dataVolumeManager.CreateOrUpdateDataVolume(ctx, kubeconfig, machineClassName, dataVolumeLabels, dataVolumeSpec); err != nil {
+			return errors.Wrapf(err, "could not create data volume for machine class %s", machineClassName)
+		}
+	}
+
+	return nil
 }
 
 // GenerateMachineDeployments generates the configuration for the desired machine deployments.
