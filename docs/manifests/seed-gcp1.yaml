@@ -1,0 +1,27 @@
+apiVersion: core.gardener.cloud/v1beta1
+kind: Seed
+metadata:
+  name: gcp1
+spec:
+  backup:
+    provider: gcp
+    secretRef:
+      name: seed-operator-gcp
+      namespace: garden
+  dns:
+    ingressDomain: ingress.gcp1.<ingress domain>
+  networks:
+    blockCIDRs:
+    - 169.254.169.254/32
+    nodes: 10.222.0.0/16
+    pods: 10.223.128.0/17
+    services: 10.223.0.0/17
+    shootDefaults:
+      pods: 100.96.0.0/11
+      services: 100.64.0.0/13
+  provider:
+    region: europe-west1
+    type: gcp
+  secretRef:
+    name: gcp1-kubeconfig
+    namespace: garden

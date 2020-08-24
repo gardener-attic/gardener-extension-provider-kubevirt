@@ -1,0 +1,216 @@
+apiVersion: core.gardener.cloud/v1beta1
+kind: CloudProfile
+metadata:
+  name: gcp
+spec:
+  kubernetes:
+    versions:
+    - version: 1.18.2
+    - version: 1.17.5
+    - version: 1.16.9
+  machineImages:
+  - name: ubuntu
+    versions:
+    - version: 18.4.20200228
+    - version: 18.4.20200228-vmx
+  machineTypes:
+  - cpu: "2"
+    gpu: "0"
+    memory: 7500Mi
+    name: n1-standard-2
+    usable: true
+  - cpu: "4"
+    gpu: "0"
+    memory: 15Gi
+    name: n1-standard-4
+    usable: true
+  - cpu: "8"
+    gpu: "0"
+    memory: 30Gi
+    name: n1-standard-8
+    usable: true
+  - cpu: "16"
+    gpu: "0"
+    memory: 60Gi
+    name: n1-standard-16
+    usable: true
+  - cpu: "32"
+    gpu: "0"
+    memory: 120Gi
+    name: n1-standard-32
+    usable: true
+  - cpu: "64"
+    gpu: "0"
+    memory: 240Gi
+    name: n1-standard-64
+    usable: true
+  - cpu: "2"
+    gpu: "0"
+    memory: 13Gi
+    name: n1-highmem-2
+    usable: true
+  - cpu: "4"
+    gpu: "0"
+    memory: 26Gi
+    name: n1-highmem-4
+    usable: true
+  - cpu: "8"
+    gpu: "0"
+    memory: 52Gi
+    name: n1-highmem-8
+    usable: true
+  - cpu: "16"
+    gpu: "0"
+    memory: 104Gi
+    name: n1-highmem-16
+    usable: true
+  - cpu: "32"
+    gpu: "0"
+    memory: 208Gi
+    name: n1-highmem-32
+    usable: true
+  - cpu: "64"
+    gpu: "0"
+    memory: 416Gi
+    name: n1-highmem-64
+    usable: true
+  - cpu: "96"
+    gpu: "0"
+    memory: 624Gi
+    name: n1-highmem-96
+    usable: true
+  providerConfig:
+    apiVersion: gcp.provider.extensions.gardener.cloud/v1alpha1
+    kind: CloudProfileConfig
+    machineImages:
+    - name: ubuntu
+      versions:
+      - image: projects/ubuntu-os-cloud/global/images/ubuntu-1804-bionic-v20200218
+        version: 18.4.20200228
+      - image: <path to custom ubuntu image>
+        version: 18.4.20200228-vmx
+  regions:
+  - name: asia-east1
+    zones:
+    - name: asia-east1-a
+    - name: asia-east1-b
+    - name: asia-east1-c
+  - name: asia-east2
+    zones:
+    - name: asia-east2-c
+    - name: asia-east2-b
+    - name: asia-east2-a
+  - name: asia-northeast1
+    zones:
+    - name: asia-northeast1-a
+    - name: asia-northeast1-b
+    - name: asia-northeast1-c
+  - name: asia-northeast2
+    zones:
+    - name: asia-northeast2-a
+    - name: asia-northeast2-b
+    - name: asia-northeast2-c
+  - name: asia-northeast3
+    zones:
+    - name: asia-northeast3-a
+    - name: asia-northeast3-b
+    - name: asia-northeast3-c
+  - name: asia-south1
+    zones:
+    - name: asia-south1-b
+    - name: asia-south1-a
+    - name: asia-south1-c
+  - name: asia-southeast1
+    zones:
+    - name: asia-southeast1-a
+    - name: asia-southeast1-b
+    - name: asia-southeast1-c
+  - name: australia-southeast1
+    zones:
+    - name: australia-southeast1-c
+    - name: australia-southeast1-a
+    - name: australia-southeast1-b
+  - name: europe-north1
+    zones:
+    - name: europe-north1-b
+    - name: europe-north1-c
+    - name: europe-north1-a
+  - name: europe-west1
+    zones:
+    - name: europe-west1-b
+    - name: europe-west1-c
+    - name: europe-west1-d
+  - name: europe-west2
+    zones:
+    - name: europe-west2-a
+    - name: europe-west2-b
+    - name: europe-west2-c
+  - name: europe-west3
+    zones:
+    - name: europe-west3-c
+    - name: europe-west3-a
+    - name: europe-west3-b
+  - name: europe-west4
+    zones:
+    - name: europe-west4-c
+    - name: europe-west4-b
+    - name: europe-west4-a
+  - name: europe-west5
+    zones:
+    - name: europe-west5-a
+    - name: europe-west5-b
+    - name: europe-west5-c
+  - name: europe-west6
+    zones:
+    - name: europe-west6-b
+    - name: europe-west6-c
+    - name: europe-west6-a
+  - name: northamerica-northeast1
+    zones:
+    - name: northamerica-northeast1-a
+    - name: northamerica-northeast1-b
+    - name: northamerica-northeast1-c
+  - name: southamerica-east1
+    zones:
+    - name: southamerica-east1-a
+    - name: southamerica-east1-b
+    - name: southamerica-east1-c
+  - name: us-central1
+    zones:
+    - name: us-central1-a
+    - name: us-central1-b
+    - name: us-central1-c
+    - name: us-central1-f
+  - name: us-east1
+    zones:
+    - name: us-east1-b
+    - name: us-east1-c
+    - name: us-east1-d
+  - name: us-east4
+    zones:
+    - name: us-east4-a
+    - name: us-east4-b
+    - name: us-east4-c
+  - name: us-west1
+    zones:
+    - name: us-west1-a
+    - name: us-west1-b
+    - name: us-west1-c
+  - name: us-west2
+    zones:
+    - name: us-west2-c
+    - name: us-west2-b
+    - name: us-west2-a
+  - name: us-west3
+    zones:
+    - name: us-west3-a
+    - name: us-west3-b
+    - name: us-west3-c
+  type: gcp
+  volumeTypes:
+  - class: standard
+    name: pd-standard
+    usable: true
+  - class: premium
+    name: pd-ssd
+    usable: true

@@ -1,0 +1,58 @@
+apiVersion: core.gardener.cloud/v1beta1
+kind: Shoot
+metadata:
+  name: kubevirt
+  namespace: garden-dev
+  annotations:
+    gardener.cloud/created-by: john.doe@example.com
+spec:
+  addons:
+    kubernetesDashboard:
+      enabled: false
+    nginxIngress:
+      enabled: false
+  cloudProfileName: kubevirt
+  hibernation:
+    enabled: false
+  kubernetes:
+    version: 1.17.5
+  networking:
+    type: calico
+    pods: 100.96.0.0/11
+    nodes: 10.225.128.0/17 # Must be the same as the pod network of your provider cluster.
+    services: 100.64.0.0/13
+    providerConfig:
+      apiVersion: calico.networking.extensions.gardener.cloud/v1alpha1
+      kind: NetworkConfig
+      backend: bird
+      ipam:
+        type: host-local
+        cidr: usePodCIDR
+  maintenance:
+    autoUpdate:
+      kubernetesVersion: true
+      machineImageVersion: true
+    timeWindow:
+      begin: 220000+0000
+      end: 230000+0000
+  provider:
+    type: kubevirt
+    controlPlaneConfig:
+      apiVersion: kubevirt.provider.extensions.gardener.cloud/v1alpha1
+      kind: ControlPlaneConfig
+    infrastructureConfig:
+      apiVersion: kubevirt.provider.extensions.gardener.cloud/v1alpha1
+      kind: InfrastructureConfig
+    workers:
+    - name: cpu-worker
+      minimum: 1
+      maximum: 2
+      machine:
+        type: standard-1
+        image:
+          name: "ubuntu"
+          version: "18.04"
+  purpose: development
+  region: local
+  secretBindingName: kubevirt-credentials
+  seedName: gcp1

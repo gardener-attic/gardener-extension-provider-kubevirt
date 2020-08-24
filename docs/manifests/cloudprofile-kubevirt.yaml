@@ -1,0 +1,45 @@
+apiVersion: core.gardener.cloud/v1beta1
+kind: CloudProfile
+metadata:
+  name: kubevirt
+spec:
+  type: kubevirt
+  providerConfig:
+    apiVersion: kubevirt.provider.extensions.gardener.cloud/v1alpha1
+    kind: CloudProfileConfig
+    machineDeploymentConfig:
+    - machineTypeName: standard-1
+    - machineTypeName: standard-2
+    machineImages:
+    - name: ubuntu
+      versions:
+      - version: "18.04"
+        sourceURL: "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img"
+  kubernetes:
+    versions:
+    - version: "1.17.5"
+  machineImages:
+  - name: ubuntu
+    versions:
+    - version: "18.04"
+  machineTypes:
+  - name: standard-1
+    cpu: "1"
+    gpu: "0"
+    memory: 4Gi
+    storage:
+      class: gardener.cloud-fast
+      type: DataVolume
+      size: 20Gi
+    usable: true
+  - name: standard-2
+    cpu: "2"
+    gpu: "0"
+    memory: 8Gi
+    storage:
+      class: gardener.cloud-fast
+      type: DataVolume
+      size: 20Gi
+    usable: true
+  regions:
+  - name: local
