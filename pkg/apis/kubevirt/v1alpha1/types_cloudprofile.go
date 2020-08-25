@@ -52,6 +52,4 @@ type MachineImageVersion struct {
 type MachineDeploymentConfig struct {
 	// MachineTypeName is the name of the machine type, used as a reference to MachineType object
 	MachineTypeName string `json:"machineTypeName"`
-	// Namespace is the name of the namespace where the machines should be deployed
-	Namespace string `json:"namespace"`
 }

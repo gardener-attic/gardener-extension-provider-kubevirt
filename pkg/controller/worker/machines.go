@@ -22,15 +22,12 @@ import (
 	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
 
-	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/extensions/pkg/controller/worker"
 	corev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	machinev1alpha1 "github.com/gardener/machine-controller-manager/pkg/apis/machine/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
-
-const KubeconfigSecretKey = "kubeconfig"
 
 // MachineClassKind yields the name of the KubeVirt machine class.
 func (w *workerDelegate) MachineClassKind() string {
@@ -65,22 +62,6 @@ func (w *workerDelegate) GenerateMachineDeployments(ctx context.Context) (worker
 	return w.machineDeployments, nil
 }
 
-func (w *workerDelegate) generateMachineClassSecretData(ctx context.Context) (map[string][]byte, error) {
-	secret, err := extensionscontroller.GetSecretByReference(ctx, w.Client(), &w.worker.Spec.SecretRef)
-	if err != nil {
-		return nil, err
-	}
-
-	kubeconfig, ok := secret.Data[KubeconfigSecretKey]
-	if !ok {
-		return nil, fmt.Errorf("missing %q field in secret", KubeconfigSecretKey)
-	}
-
-	return map[string][]byte{
-		KubeconfigSecretKey: kubeconfig,
-	}, nil
-}
-
 func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 	var (
 		machineDeployments = worker.MachineDeployments{}
@@ -88,7 +69,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 		machineImages      []apiskubevirt.MachineImage
 	)
 
-	secretData, err := w.generateMachineClassSecretData(ctx)
+	kubeconfig, err := kubevirt.GetKubeConfig(ctx, w.Client(), w.worker.Spec.SecretRef)
 	if err != nil {
 		return err
 	}
@@ -99,11 +80,6 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 		zoneLen := int32(1)
 
 		machineType, err := w.getMachineType(pool.MachineType)
-		if err != nil {
-			return err
-		}
-
-		machineDeploymentConfig, err := w.getMachineDeploymentConfig(pool.MachineType)
 		if err != nil {
 			return err
 		}
@@ -133,14 +109,13 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			"sourceURL":        imageSourceURL,
 			"cpus":             machineType.CPU,
 			"memory":           machineType.Memory,
-			"namespace":        machineDeploymentConfig.Namespace,
 			"tags": map[string]string{
 				"mcm.gardener.cloud/cluster": w.worker.Namespace,
 				"mcm.gardener.cloud/role":    "node",
 			},
 			"secret": map[string]interface{}{
 				"cloudConfig": string(pool.UserData),
-				"kubeconfig":  string(secretData[KubeconfigSecretKey]),
+				"kubeconfig":  string(kubeconfig),
 			},
 		})
 
