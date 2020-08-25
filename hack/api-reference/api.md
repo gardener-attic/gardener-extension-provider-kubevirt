@@ -108,6 +108,20 @@ string
 </td>
 <td><code>ControlPlaneConfig</code></td>
 </tr>
+<tr>
+<td>
+<code>cloudControllerManager</code></br>
+<em>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.CloudControllerManagerConfig">
+CloudControllerManagerConfig
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>CloudControllerManager contains configuration settings for the cloud-controller-manager.</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.InfrastructureConfig">InfrastructureConfig
@@ -188,6 +202,37 @@ gets the mapping from name/version to the provider-specific machine image data i
 a version that is still in use gets removed from this componentconfig it cannot reconcile anymore existing <code>Worker</code>
 resources that are still using this version. Hence, it stores the used versions in the provider status to ensure
 reconciliation is possible.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.CloudControllerManagerConfig">CloudControllerManagerConfig
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.ControlPlaneConfig">ControlPlaneConfig</a>)
+</p>
+<p>
+<p>CloudControllerManagerConfig contains configuration settings for the cloud-controller-manager.</p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>featureGates</code></br>
+<em>
+map[string]bool
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>FeatureGates contains information about enabled feature gates.</p>
 </td>
 </tr>
 </tbody>

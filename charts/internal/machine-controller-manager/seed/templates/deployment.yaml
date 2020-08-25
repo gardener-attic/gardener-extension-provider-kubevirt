@@ -31,6 +31,9 @@ spec:
         networking.gardener.cloud/to-private-networks: allowed
         networking.gardener.cloud/to-seed-apiserver: allowed
         networking.gardener.cloud/to-shoot-apiserver: allowed
+        # This network policy is needed to access the provider shoot if it happens to be collocated on the same seed
+        # TODO Replace this with a network policy that allows egress only to the provider shoot
+        networking.gardener.cloud/to-all-shoot-apiservers: allowed
         networking.gardener.cloud/from-prometheus: allowed
 {{- if .Values.podLabels }}
 {{ toYaml .Values.podLabels | indent 8 }}

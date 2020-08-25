@@ -12,25 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package infrastructure
+package controlplane_test
 
 import (
-	"github.com/gardener/gardener/extensions/pkg/controller/common"
-	"github.com/gardener/gardener/extensions/pkg/controller/infrastructure"
-	"github.com/go-logr/logr"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	"testing"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
-type actuator struct {
-	common.ChartRendererContext
-
-	logger logr.Logger
-}
-
-// NewActuator creates a new Actuator that updates the status of the handled Infrastructure resources.
-func NewActuator() infrastructure.Actuator {
-
-	return &actuator{
-		logger: log.Log.WithName("infrastructure-actuator"),
-	}
+func TestControlplane(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Controlplane Suite")
 }

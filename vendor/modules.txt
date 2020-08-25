@@ -16,6 +16,7 @@ github.com/ahmetb/gen-crd-api-reference-docs
 # github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973
 github.com/beorn7/perks/quantile
 # github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f
+## explicit
 github.com/coreos/go-systemd/unit
 # github.com/cyphar/filepath-securejoin v0.2.2
 github.com/cyphar/filepath-securejoin
@@ -78,6 +79,7 @@ github.com/gardener/gardener/extensions/pkg/webhook
 github.com/gardener/gardener/extensions/pkg/webhook/cmd
 github.com/gardener/gardener/extensions/pkg/webhook/controlplane
 github.com/gardener/gardener/extensions/pkg/webhook/controlplane/genericmutator
+github.com/gardener/gardener/extensions/pkg/webhook/controlplane/test
 github.com/gardener/gardener/extensions/pkg/webhook/shoot
 github.com/gardener/gardener/hack
 github.com/gardener/gardener/hack/.ci
@@ -647,8 +649,10 @@ k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/third_party/forked/golang/netutil
 k8s.io/apimachinery/third_party/forked/golang/reflect
 # k8s.io/apiserver v0.17.6 => k8s.io/apiserver v0.16.8
+## explicit
 k8s.io/apiserver/pkg/authentication/user
 # k8s.io/autoscaler v0.0.0-20190805135949-100e91ba756e
+## explicit
 k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta2
 # k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible => k8s.io/client-go v0.16.8
 ## explicit
@@ -812,8 +816,10 @@ k8s.io/kube-openapi/pkg/generators/rules
 k8s.io/kube-openapi/pkg/util/proto
 k8s.io/kube-openapi/pkg/util/sets
 # k8s.io/kubelet v0.17.6
+## explicit
 k8s.io/kubelet/config/v1beta1
 # k8s.io/utils v0.0.0-20200327001022-6496210b90e8
+## explicit
 k8s.io/utils/buffer
 k8s.io/utils/integer
 k8s.io/utils/pointer
