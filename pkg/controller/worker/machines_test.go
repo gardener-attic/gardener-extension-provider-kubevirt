@@ -103,6 +103,7 @@ var _ = Describe("Machines", func() {
 			shootVersion := "1.2.3"
 			cloudProfileName := "test-profile"
 			ubuntuSourceURL := "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
+			sshPublicKey := []byte("ssh-rsa AAAAB3...")
 
 			images := []apiv1alpha1.MachineImages{
 				{
@@ -164,7 +165,7 @@ var _ = Describe("Machines", func() {
 							Zones:    []string{},
 						},
 					},
-					SSHPublicKey: []byte{},
+					SSHPublicKey: sshPublicKey,
 				},
 			}
 
@@ -210,6 +211,7 @@ var _ = Describe("Machines", func() {
 					"8Gi",
 					"2",
 					"4096Mi",
+					sshPublicKey,
 				)
 
 				machineClass2 := generateMachineClass(
@@ -218,6 +220,7 @@ var _ = Describe("Machines", func() {
 					"8Gi",
 					"300m",
 					"8192Mi",
+					sshPublicKey,
 				)
 
 				chartApplier.
@@ -353,7 +356,7 @@ func generateKubeVirtSecret(c *mockclient.MockClient) {
 		})
 }
 
-func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, cpu, memory string) map[string]interface{} {
+func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, cpu, memory string, sshPublicKey []byte) map[string]interface{} {
 	out := make(map[string]interface{})
 
 	for k, v := range classTemplate {
@@ -364,6 +367,7 @@ func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, c
 	out["pvcSize"] = resource.MustParse(pvcSize)
 	out["cpus"] = resource.MustParse(cpu)
 	out["memory"] = resource.MustParse(memory)
+	out["sshKeys"] = []string{string(sshPublicKey)}
 
 	return out
 }

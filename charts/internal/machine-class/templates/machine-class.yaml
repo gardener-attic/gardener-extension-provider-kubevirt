@@ -33,6 +33,8 @@ providerSpec:
 {{- if $machineClass.memory }}
   memory: "{{ $machineClass.memory }}"
 {{ end }}
+  sshKeys:
+{{ toYaml $machineClass.sshKeys | indent 4 }}
 secretRef:
   name: "{{ $machineClass.name }}"
   namespace: "{{ $.Release.Namespace }}"
