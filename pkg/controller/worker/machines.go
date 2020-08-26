@@ -74,6 +74,10 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 		return err
 	}
 
+	if len(w.worker.Spec.SSHPublicKey) == 0 {
+		return fmt.Errorf("missing sshPublicKey in worker")
+	}
+
 	for _, pool := range w.worker.Spec.Pools {
 		// hardcoded for now as we don't support zones yet
 		zoneIdx := int32(0)
@@ -109,6 +113,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			"sourceURL":        imageSourceURL,
 			"cpus":             machineType.CPU,
 			"memory":           machineType.Memory,
+			"sshKeys":          []string{string(w.worker.Spec.SSHPublicKey)},
 			"tags": map[string]string{
 				"mcm.gardener.cloud/cluster": w.worker.Namespace,
 				"mcm.gardener.cloud/role":    "node",
