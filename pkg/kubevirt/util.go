@@ -18,16 +18,22 @@ import (
 	"context"
 
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+const KubeconfigSecretKey = "kubeconfig"
 
 // GetKubeConfig retrieves the kubeconfig specified by the secret reference.
 func GetKubeConfig(ctx context.Context, c client.Client, secretRef corev1.SecretReference) ([]byte, error) {
 	secret, err := extensionscontroller.GetSecretByReference(ctx, c, &secretRef)
 	if err != nil {
-		return []byte(""), err
+		return []byte(""), errors.Wrapf(err, "could not get secret by reference")
 	}
-
-	return secret.Data["kubeconfig"], nil
+	kubeconfig, ok := secret.Data[KubeconfigSecretKey]
+	if !ok {
+		return nil, errors.Errorf("missing %q field in secret", KubeconfigSecretKey)
+	}
+	return kubeconfig, nil
 }

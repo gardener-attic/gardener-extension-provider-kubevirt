@@ -280,17 +280,6 @@ string
 <p>MachineTypeName is the name of the machine type, used as a reference to MachineType object</p>
 </td>
 </tr>
-<tr>
-<td>
-<code>namespace</code></br>
-<em>
-string
-</em>
-</td>
-<td>
-<p>Namespace is the name of the namespace where the machines should be deployed</p>
-</td>
-</tr>
 </tbody>
 </table>
 <h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.MachineImage">MachineImage

@@ -188,14 +188,13 @@ var _ = Describe("Machines", func() {
 				machineClassTemplate := map[string]interface{}{
 					"storageClassName": "standard",
 					"sourceURL":        ubuntuSourceURL,
-					"namespace":        "default",
 					"tags": map[string]string{
 						"mcm.gardener.cloud/cluster": namespace,
 						"mcm.gardener.cloud/role":    "node",
 					},
 					"secret": map[string]interface{}{
 						"cloudConfig": "user-data",
-						"kubeconfig":  "YXNkCg==",
+						"kubeconfig":  kubeconfig,
 					},
 				}
 
@@ -326,12 +325,29 @@ var _ = Describe("Machines", func() {
 	})
 })
 
+const kubeconfig = `apiVersion: v1
+kind: Config
+current-context: provider
+clusters:
+- name: provider
+  cluster:
+    server: https://provider.example.com
+contexts:
+- name: provider
+  context:
+    cluster: provider
+    user: admin
+users:
+- name: admin
+  user:
+    token: abc`
+
 func generateKubeVirtSecret(c *mockclient.MockClient) {
 	c.EXPECT().
 		Get(context.TODO(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
 		DoAndReturn(func(_ context.Context, _ client.ObjectKey, secret *corev1.Secret) error {
 			secret.Data = map[string][]byte{
-				KubeconfigSecretKey: []byte("YXNkCg=="),
+				kubevirt.KubeconfigSecretKey: []byte(kubeconfig),
 			}
 			return nil
 		})
@@ -361,11 +377,9 @@ func createCluster(cloudProfileName, shootVersion string, images []apiv1alpha1.M
 		MachineImages: images,
 		MachineDeploymentConfig: []apiv1alpha1.MachineDeploymentConfig{
 			{
-				Namespace:       "default",
 				MachineTypeName: "local-1",
 			},
 			{
-				Namespace:       "default",
 				MachineTypeName: "local-2",
 			},
 		},

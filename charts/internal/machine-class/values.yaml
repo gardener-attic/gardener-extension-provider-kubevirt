@@ -11,4 +11,3 @@ machineClasses:
   sourceURL: source-image-url
   cpus: "1"
   memory: "4096M"
-  namespace: default

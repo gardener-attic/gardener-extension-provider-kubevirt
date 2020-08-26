@@ -33,9 +33,6 @@ providerSpec:
 {{- if $machineClass.memory }}
   memory: "{{ $machineClass.memory }}"
 {{ end }}
-{{- if $machineClass.namespace }}
-  namespace: "{{ $machineClass.namespace }}"
-{{ end }}
 secretRef:
   name: "{{ $machineClass.name }}"
   namespace: "{{ $.Release.Namespace }}"

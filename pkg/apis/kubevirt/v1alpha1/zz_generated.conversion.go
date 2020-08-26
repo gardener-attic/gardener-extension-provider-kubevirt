@@ -238,7 +238,6 @@ func Convert_kubevirt_InfrastructureStatus_To_v1alpha1_InfrastructureStatus(in *
 
 func autoConvert_v1alpha1_MachineDeploymentConfig_To_kubevirt_MachineDeploymentConfig(in *MachineDeploymentConfig, out *kubevirt.MachineDeploymentConfig, s conversion.Scope) error {
 	out.MachineTypeName = in.MachineTypeName
-	out.Namespace = in.Namespace
 	return nil
 }
 
@@ -249,7 +248,6 @@ func Convert_v1alpha1_MachineDeploymentConfig_To_kubevirt_MachineDeploymentConfi
 
 func autoConvert_kubevirt_MachineDeploymentConfig_To_v1alpha1_MachineDeploymentConfig(in *kubevirt.MachineDeploymentConfig, out *MachineDeploymentConfig, s conversion.Scope) error {
 	out.MachineTypeName = in.MachineTypeName
-	out.Namespace = in.Namespace
 	return nil
 }
 
