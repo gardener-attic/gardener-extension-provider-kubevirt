@@ -1,4 +1,4 @@
-// Copyright (c) 2019 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright (c) 2020 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,6 +25,14 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+// Interface represents a set of secrets that can be deployed and deleted.
+type Interface interface {
+	// Deploy generates and deploys the secrets into the given namespace, taking into account existing secrets.
+	Deploy(context.Context, kubernetes.Interface, gardenerkubernetes.Interface, string) (map[string]*corev1.Secret, error)
+	// Delete deletes the secrets from the given namespace.
+	Delete(kubernetes.Interface, string) error
+}
+
 // Secrets represents a set of secrets that can be deployed and deleted.
 type Secrets struct {
 	CertificateSecretConfigs map[string]*CertificateSecretConfig
@@ -38,7 +46,6 @@ func (s *Secrets) Deploy(
 	gcs gardenerkubernetes.Interface,
 	namespace string,
 ) (map[string]*corev1.Secret, error) {
-
 	// Get existing secrets in the namespace
 	existingSecrets, err := getSecrets(cs, namespace)
 	if err != nil {

@@ -22,7 +22,7 @@ import (
 	apiskubevirthelper "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/helper"
 	kubevirtv1alpha1 "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/v1alpha1"
 
-	"github.com/gardener/gardener/extensions/pkg/util"
+	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -68,7 +68,7 @@ func (w *workerDelegate) getMachineImageURL(name, version string) (string, error
 	if providerStatus := w.worker.Status.ProviderStatus; providerStatus != nil {
 		workerStatus := &apiskubevirt.WorkerStatus{}
 		if _, _, err := w.Decoder().Decode(providerStatus.Raw, nil, workerStatus); err != nil {
-			return "", errors.Wrapf(err, "could not decode worker status of worker '%s'", util.ObjectName(w.worker))
+			return "", errors.Wrapf(err, "could not decode worker status of worker '%s'", kutil.ObjectName(w.worker))
 		}
 
 		machineImage, err := apiskubevirthelper.FindMachineImage(workerStatus.MachineImages, name, version)

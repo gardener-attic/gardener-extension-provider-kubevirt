@@ -22,12 +22,11 @@ import (
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
 
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
-	"github.com/gardener/gardener/extensions/pkg/controller/controlplane"
 	"github.com/gardener/gardener/extensions/pkg/controller/controlplane/genericactuator"
-	"github.com/gardener/gardener/extensions/pkg/util"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	"github.com/gardener/gardener/pkg/utils/chart"
+	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/secrets"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -66,7 +65,7 @@ var (
 					CertificateSecretConfig: &secrets.CertificateSecretConfig{
 						Name:       kubevirt.CloudControllerManagerName + "-server",
 						CommonName: kubevirt.CloudControllerManagerName,
-						DNSNames:   controlplane.DNSNamesForService(kubevirt.CloudControllerManagerName, clusterName),
+						DNSNames:   kutil.DNSNamesForService(kubevirt.CloudControllerManagerName, clusterName),
 						CertType:   secrets.ServerCert,
 						SigningCA:  cas[v1beta1constants.SecretNameCACluster],
 					},
@@ -166,7 +165,7 @@ func (vp *valuesProvider) GetControlPlaneChartValues(
 	cpConfig := &apiskubevirt.ControlPlaneConfig{}
 	if cp.Spec.ProviderConfig != nil {
 		if _, _, err := vp.Decoder().Decode(cp.Spec.ProviderConfig.Raw, nil, cpConfig); err != nil {
-			return nil, errors.Wrapf(err, "could not decode providerConfig of controlplane '%s'", util.ObjectName(cp))
+			return nil, errors.Wrapf(err, "could not decode providerConfig of controlplane '%s'", kutil.ObjectName(cp))
 		}
 	}
 

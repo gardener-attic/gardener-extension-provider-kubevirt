@@ -73,6 +73,11 @@ type ProjectStatus struct {
 	ObservedGeneration int64
 	// Phase is the current phase of the project.
 	Phase ProjectPhase
+	// StaleSinceTimestamp contains the timestamp when the project was first discovered to be stale/unused.
+	StaleSinceTimestamp *metav1.Time
+	// StaleAutoDeleteTimestamp contains the timestamp when the project will be garbage-collected/automatically deleted
+	// because it's stale/unused.
+	StaleAutoDeleteTimestamp *metav1.Time
 }
 
 // ProjectMember is a member of a project.
@@ -108,7 +113,8 @@ const (
 	ProjectMemberOwner = "owner"
 	// ProjectMemberViewer is a const for a role that provides limited permissions to only view some resources.
 	ProjectMemberViewer = "viewer"
-
+	// ProjectMemberUserAccessManager is a const for a role that provides permissions to manage human user(s, (groups)).
+	ProjectMemberUserAccessManager = "uam"
 	// ProjectMemberExtensionPrefix is a prefix for custom roles that are not known by Gardener.
 	ProjectMemberExtensionPrefix = "extension:"
 )
