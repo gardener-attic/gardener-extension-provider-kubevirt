@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 
 	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/helper"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
 
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
@@ -161,12 +162,9 @@ func (vp *valuesProvider) GetControlPlaneChartValues(
 	checksums map[string]string,
 	scaledDown bool,
 ) (map[string]interface{}, error) {
-	// Decode providerConfig
-	cpConfig := &apiskubevirt.ControlPlaneConfig{}
-	if cp.Spec.ProviderConfig != nil {
-		if _, _, err := vp.Decoder().Decode(cp.Spec.ProviderConfig.Raw, nil, cpConfig); err != nil {
-			return nil, errors.Wrapf(err, "could not decode providerConfig of controlplane '%s'", kutil.ObjectName(cp))
-		}
+	cpConfig, err := helper.GetControlPlaneConfig(cp)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not get ControlPlaneConfig from controlplane")
 	}
 
 	return getControlPlaneChartValues(cpConfig, cp, cluster, checksums, scaledDown)

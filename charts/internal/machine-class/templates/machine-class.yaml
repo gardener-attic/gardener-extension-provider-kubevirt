@@ -35,6 +35,10 @@ providerSpec:
 {{ end }}
   sshKeys:
 {{ toYaml $machineClass.sshKeys | indent 4 }}
+{{- if $machineClass.networks }}
+  networks:
+{{ toYaml $machineClass.networks | indent 4 }}
+{{- end }}
 secretRef:
   name: "{{ $machineClass.name }}"
   namespace: "{{ $.Release.Namespace }}"

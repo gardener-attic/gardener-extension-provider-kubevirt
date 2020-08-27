@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 
 	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/helper"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
 
 	"github.com/gardener/gardener/extensions/pkg/controller/worker"
@@ -75,6 +76,11 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 		return err
 	}
 
+	infrastructureStatus, err := helper.GetInfrastructureStatus(w.worker)
+	if err != nil {
+		return err
+	}
+
 	if len(w.worker.Spec.SSHPublicKey) == 0 {
 		return fmt.Errorf("missing sshPublicKey in worker")
 	}
@@ -107,6 +113,14 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 		deploymentName := fmt.Sprintf("%s-%s-z", w.worker.Namespace, pool.Name)
 		className := fmt.Sprintf("%s-%s", deploymentName, workerPoolHash)
 
+		var networks []interface{}
+		for _, networkStatus := range infrastructureStatus.Networks {
+			networks = append(networks, map[string]interface{}{
+				"name":    networkStatus.Name,
+				"default": networkStatus.Default,
+			})
+		}
+
 		machineClasses = append(machineClasses, map[string]interface{}{
 			"name":             className,
 			"storageClassName": machineType.Storage.Class,
@@ -115,6 +129,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			"cpus":             machineType.CPU,
 			"memory":           machineType.Memory,
 			"sshKeys":          []string{string(w.worker.Spec.SSHPublicKey)},
+			"networks":         networks,
 			"tags": map[string]string{
 				"mcm.gardener.cloud/cluster": w.worker.Namespace,
 				"mcm.gardener.cloud/role":    "node",
