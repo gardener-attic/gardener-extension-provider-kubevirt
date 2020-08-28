@@ -22,6 +22,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
+	"time"
 
 	api "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
 	apiv1alpha1 "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/v1alpha1"
@@ -104,6 +106,7 @@ var _ = Describe("Machines", func() {
 			cloudProfileName := "test-profile"
 			ubuntuSourceURL := "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
 			sshPublicKey := []byte("ssh-rsa AAAAB3...")
+			machineConfiguration := &machinev1alpha1.MachineConfiguration{}
 
 			images := []apiv1alpha1.MachineImages{
 				{
@@ -264,22 +267,24 @@ var _ = Describe("Machines", func() {
 
 				machineDeployments := worker.MachineDeployments{
 					{
-						Name:           machineDeploymentName1,
-						ClassName:      machineClassName1,
-						SecretName:     machineClassName1,
-						Minimum:        worker.DistributeOverZones(zoneIdx, minPool1, zoneLen),
-						Maximum:        worker.DistributeOverZones(zoneIdx, maxPool1, zoneLen),
-						MaxSurge:       worker.DistributePositiveIntOrPercent(zoneIdx, maxSurgePool1, zoneLen, maxPool1),
-						MaxUnavailable: worker.DistributePositiveIntOrPercent(zoneIdx, maxUnavailablePool1, zoneLen, minPool1),
+						Name:                 machineDeploymentName1,
+						ClassName:            machineClassName1,
+						SecretName:           machineClassName1,
+						Minimum:              worker.DistributeOverZones(zoneIdx, minPool1, zoneLen),
+						Maximum:              worker.DistributeOverZones(zoneIdx, maxPool1, zoneLen),
+						MaxSurge:             worker.DistributePositiveIntOrPercent(zoneIdx, maxSurgePool1, zoneLen, maxPool1),
+						MaxUnavailable:       worker.DistributePositiveIntOrPercent(zoneIdx, maxUnavailablePool1, zoneLen, minPool1),
+						MachineConfiguration: machineConfiguration,
 					},
 					{
-						Name:           machineDeploymentName2,
-						ClassName:      machineClassName2,
-						SecretName:     machineClassName2,
-						Minimum:        worker.DistributeOverZones(zoneIdx, minPool2, zoneLen),
-						Maximum:        worker.DistributeOverZones(zoneIdx, maxPool2, zoneLen),
-						MaxSurge:       worker.DistributePositiveIntOrPercent(zoneIdx, maxSurgePool2, zoneLen, maxPool2),
-						MaxUnavailable: worker.DistributePositiveIntOrPercent(zoneIdx, maxUnavailablePool2, zoneLen, minPool2),
+						Name:                 machineDeploymentName2,
+						ClassName:            machineClassName2,
+						SecretName:           machineClassName2,
+						Minimum:              worker.DistributeOverZones(zoneIdx, minPool2, zoneLen),
+						Maximum:              worker.DistributeOverZones(zoneIdx, maxPool2, zoneLen),
+						MaxSurge:             worker.DistributePositiveIntOrPercent(zoneIdx, maxSurgePool2, zoneLen, maxPool2),
+						MaxUnavailable:       worker.DistributePositiveIntOrPercent(zoneIdx, maxUnavailablePool2, zoneLen, minPool2),
+						MachineConfiguration: machineConfiguration,
 					},
 				}
 				result, err := workerDelegate.GenerateMachineDeployments(context.TODO())
@@ -323,6 +328,36 @@ var _ = Describe("Machines", func() {
 				result, err := workerDelegate.GenerateMachineDeployments(context.TODO())
 				Expect(err).To(HaveOccurred())
 				Expect(result).To(BeNil())
+			})
+
+			It("should set expected machineControllerManager settings on machine deployment", func() {
+				generateKubeVirtSecret(c)
+
+				testDrainTimeout := metav1.Duration{Duration: 10 * time.Minute}
+				testHealthTimeout := metav1.Duration{Duration: 20 * time.Minute}
+				testCreationTimeout := metav1.Duration{Duration: 30 * time.Minute}
+				testMaxEvictRetries := int32(30)
+				testNodeConditions := []string{"ReadonlyFilesystem", "KernelDeadlock", "DiskPressure"}
+				w.Spec.Pools[0].MachineControllerManagerSettings = &gardencorev1beta1.MachineControllerManagerSettings{
+					MachineDrainTimeout:    &testDrainTimeout,
+					MachineCreationTimeout: &testCreationTimeout,
+					MachineHealthTimeout:   &testHealthTimeout,
+					MaxEvictRetries:        &testMaxEvictRetries,
+					NodeConditions:         testNodeConditions,
+				}
+
+				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster)
+
+				result, err := workerDelegate.GenerateMachineDeployments(context.TODO())
+				resultSettings := result[0].MachineConfiguration
+				resultNodeConditions := strings.Join(testNodeConditions, ",")
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(resultSettings.MachineDrainTimeout).To(Equal(&testDrainTimeout))
+				Expect(resultSettings.MachineCreationTimeout).To(Equal(&testCreationTimeout))
+				Expect(resultSettings.MachineHealthTimeout).To(Equal(&testHealthTimeout))
+				Expect(resultSettings.MaxEvictRetries).To(Equal(&testMaxEvictRetries))
+				Expect(resultSettings.NodeConditions).To(Equal(&resultNodeConditions))
 			})
 		})
 	})

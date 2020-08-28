@@ -23,6 +23,7 @@ import (
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
 
 	"github.com/gardener/gardener/extensions/pkg/controller/worker"
+	genericworkeractuator "github.com/gardener/gardener/extensions/pkg/controller/worker/genericactuator"
 	corev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	machinev1alpha1 "github.com/gardener/machine-controller-manager/pkg/apis/machine/v1alpha1"
@@ -125,16 +126,17 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 		})
 
 		machineDeployments = append(machineDeployments, worker.MachineDeployment{
-			Name:           deploymentName,
-			ClassName:      className,
-			SecretName:     className,
-			Minimum:        worker.DistributeOverZones(zoneIdx, pool.Minimum, zoneLen),
-			Maximum:        worker.DistributeOverZones(zoneIdx, pool.Maximum, zoneLen),
-			MaxSurge:       worker.DistributePositiveIntOrPercent(zoneIdx, pool.MaxSurge, zoneLen, pool.Maximum),
-			MaxUnavailable: worker.DistributePositiveIntOrPercent(zoneIdx, pool.MaxUnavailable, zoneLen, pool.Minimum),
-			Labels:         pool.Labels,
-			Annotations:    pool.Annotations,
-			Taints:         pool.Taints,
+			Name:                 deploymentName,
+			ClassName:            className,
+			SecretName:           className,
+			Minimum:              worker.DistributeOverZones(zoneIdx, pool.Minimum, zoneLen),
+			Maximum:              worker.DistributeOverZones(zoneIdx, pool.Maximum, zoneLen),
+			MaxSurge:             worker.DistributePositiveIntOrPercent(zoneIdx, pool.MaxSurge, zoneLen, pool.Maximum),
+			MaxUnavailable:       worker.DistributePositiveIntOrPercent(zoneIdx, pool.MaxUnavailable, zoneLen, pool.Minimum),
+			Labels:               pool.Labels,
+			Annotations:          pool.Annotations,
+			Taints:               pool.Taints,
+			MachineConfiguration: genericworkeractuator.ReadMachineConfiguration(pool),
 		})
 	}
 
