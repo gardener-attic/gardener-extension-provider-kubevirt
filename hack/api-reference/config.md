@@ -44,17 +44,6 @@ string
 </tr>
 <tr>
 <td>
-<code>gardenId</code></br>
-<em>
-string
-</em>
-</td>
-<td>
-<p>GardenId is the unique identifier of the Garden</p>
-</td>
-</tr>
-<tr>
-<td>
 <code>clientConnection</code></br>
 <em>
 <a href="https://godoc.org/k8s.io/component-base/config/v1alpha1#ClientConnectionConfiguration">

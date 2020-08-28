@@ -6,11 +6,9 @@ clientConnection:
   contentType: application/json
   qps: 100
   burst: 130
-machineImages:
-- name: ubuntu
-  version: "16.04"
-  sourceURL: "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
 etcd:
   storage:
     className: standard
     capacity: 5Gi
+#healthCheckConfig:
+#  syncPeriod: 30s

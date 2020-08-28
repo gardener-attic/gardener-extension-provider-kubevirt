@@ -19,14 +19,17 @@ import (
 
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/config"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/gardener/extensions/pkg/controller"
 	extensionswebhook "github.com/gardener/gardener/extensions/pkg/webhook"
 	"github.com/gardener/gardener/extensions/pkg/webhook/controlplane/genericmutator"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	v1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -53,6 +56,10 @@ func (e *ensurer) InjectClient(client client.Client) error {
 
 // EnsureKubeAPIServerDeployment ensures that the kube-apiserver deployment conforms to the provider requirements.
 func (e *ensurer) EnsureKubeAPIServerDeployment(ctx context.Context, ectx genericmutator.EnsurerContext, new, old *appsv1.Deployment) error {
+	if v1beta1helper.IsAPIServerExposureManaged(new) {
+		return nil
+	}
+
 	cluster, err := controller.GetCluster(ctx, e.client, new.Namespace)
 	if err != nil {
 		return err
@@ -72,5 +79,23 @@ func (e *ensurer) EnsureKubeAPIServerDeployment(ctx context.Context, ectx generi
 		c.Command = extensionswebhook.EnsureStringWithPrefix(c.Command, "--advertise-address=", address)
 		c.Command = extensionswebhook.EnsureStringWithPrefix(c.Command, "--external-hostname=", address)
 	}
+	return nil
+}
+
+// EnsureETCD ensures that the etcd conform to the provider requirements.
+func (e *ensurer) EnsureETCD(ctx context.Context, ectx genericmutator.EnsurerContext, new, old *druidv1alpha1.Etcd) error {
+	capacity := resource.MustParse("10Gi")
+	class := ""
+
+	if new.Name == v1beta1constants.ETCDMain {
+		if e.etcdStorage.Capacity != nil {
+			capacity = *e.etcdStorage.Capacity
+		}
+		if e.etcdStorage.ClassName != nil {
+			class = *e.etcdStorage.ClassName
+		}
+	}
+	new.Spec.StorageClass = &class
+	new.Spec.StorageCapacity = &capacity
 	return nil
 }

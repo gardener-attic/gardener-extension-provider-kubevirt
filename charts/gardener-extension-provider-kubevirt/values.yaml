@@ -49,14 +49,6 @@ config:
     contentType: application/json
     qps: 100
     burst: 130
-
-  ## it is preferred to specify machineImages in CloudProfile (.spec.providerConfig.machineImages)
-  #machineImages:
-  #- name: ubuntu
-  #  versions:
-  #  - version: 16.04
-  #    sourceURL: "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
-
   etcd:
     storage:
       className: gardener.cloud-fast
@@ -65,5 +57,3 @@ config:
 gardener:
   seed:
     provider: kubevirt
-  garden:
-    identity: gardener
