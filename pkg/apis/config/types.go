@@ -27,8 +27,6 @@ import (
 type ControllerConfiguration struct {
 	metav1.TypeMeta
 
-	// GardenId is the unique identifier of the Garden
-	GardenId string
 	// ClientConnection specifies the kubeconfig file and client connection
 	// settings for the proxy server to use when communicating with the apiserver.
 	ClientConnection *componentbaseconfig.ClientConnectionConfiguration

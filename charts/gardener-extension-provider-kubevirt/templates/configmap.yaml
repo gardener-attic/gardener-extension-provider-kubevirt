@@ -17,11 +17,6 @@ data:
       qps: {{ required ".Values.config.clientConnection.qps is required" .Values.config.clientConnection.qps }}
       burst: {{ required ".Values.config.clientConnection.burst is required" .Values.config.clientConnection.burst }}
 {{- end }}
-    gardenId: {{ .Values.gardener.garden.identity }}
-{{- if .Values.config.machineImages }}
-    machineImages:
-{{ toYaml .Values.config.machineImages | indent 4 }}
-{{- end }}
     etcd:
       storage:
         className: {{ .Values.config.etcd.storage.className }}
