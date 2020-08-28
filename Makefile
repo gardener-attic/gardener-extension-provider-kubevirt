@@ -52,6 +52,17 @@ start:
 		--webhook-config-mode=$(WEBHOOK_CONFIG_MODE) \
 		$(WEBHOOK_PARAM)
 
+.PHONY: start-validator
+start-validator:
+	@LEADER_ELECTION_NAMESPACE=garden GO111MODULE=on go run \
+		-mod=vendor \
+		-ldflags $(LD_FLAGS) \
+		./cmd/$(EXTENSION_PREFIX)-$(VALIDATOR_NAME) \
+		--leader-election=$(LEADER_ELECTION) \
+		--webhook-config-server-host=0.0.0.0 \
+		--webhook-config-server-port=9443 \
+		--webhook-config-cert-dir=./example/validator-kubevirt-certs
+
 #################################################################
 # Rules related to binary build, Docker image build and release #
 #################################################################
@@ -67,7 +78,8 @@ docker-login:
 
 .PHONY: docker-images
 docker-images:
-	@docker build -t $(IMAGE_PREFIX)/$(NAME):$(VERSION)           -t $(IMAGE_PREFIX)/$(NAME):latest           -f Dockerfile -m 6g --target $(EXTENSION_PREFIX)-$(NAME)           .
+	@docker build -t $(IMAGE_PREFIX)/$(NAME):$(VERSION)           -t $(IMAGE_PREFIX)/$(NAME):latest           -f Dockerfile -m 6g --target $(EXTENSION_PREFIX)-$(NAME)
+	@docker build -t $(IMAGE_PREFIX)/$(VALIDATOR_NAME):$(VERSION) -t $(IMAGE_PREFIX)/$(VALIDATOR_NAME):latest -f Dockerfile -m 6g --target $(EXTENSION_PREFIX)-$(VALIDATOR_NAME) .
 
 #####################################################################
 # Rules for verification, formatting, linting, testing and cleaning #
@@ -79,8 +91,7 @@ install-requirements:
 	@go install -mod=vendor $(REPO_ROOT)/vendor/github.com/gobuffalo/packr/v2/packr2
 	@go install -mod=vendor $(REPO_ROOT)/vendor/github.com/golang/mock/mockgen
 	@go install -mod=vendor $(REPO_ROOT)/vendor/github.com/onsi/ginkgo/ginkgo
-	# TODO Revert back to Gardener version on the next revendor
-	@$(REPO_ROOT)/hack/install-requirements.sh
+	@$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/install-requirements.sh
 
 .PHONY: revendor
 revendor:
