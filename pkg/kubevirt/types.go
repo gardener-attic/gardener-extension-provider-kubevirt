@@ -39,6 +39,19 @@ const (
 	MachineControllerManagerMonitoringConfigName = "machine-controller-manager-monitoring-config"
 	// MachineControllerManagerVpaName is the name of the VerticalPodAutoscaler of the machine-controller-manager deployment.
 	MachineControllerManagerVpaName = "machine-controller-manager-vpa"
+
+	// CSIAttacherImageName is the name of the CSI attacher image.
+	CSIAttacherImageName = "csi-attacher"
+	// CSINodeDriverRegistrarImageName is the name of the CSI driver registrar image.
+	CSINodeDriverRegistrarImageName = "csi-node-driver-registrar"
+	// CSIProvisionerImageName is the name of the CSI provisioner image.
+	CSIProvisionerImageName = "csi-provisioner"
+	// CSIResizerImageName is the name of the CSI resizer image.
+	CSIResizerImageName = "csi-resizer"
+	// CSILivenessProbeImageName is the name of the liveness-probe image.
+	CSILivenessProbeImageName = "csi-liverness-probe"
+	// CSIHostPathDriverImageName is the name of the hostpath image.
+	CSIHostPathDriverImageName = "csi-hostpath-driver"
 )
 
 var (

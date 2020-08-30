@@ -11,3 +11,27 @@ images:
   sourceRepository: https://github.com/kubevirt/cloud-provider-kubevirt
   repository: eu.gcr.io/gardener-project/gardener/kubevirt-cloud-controller-manager
   tag: "v0.0.8"
+- name: csi-attacher
+  sourceRepository: https://github.com/kubernetes-csi/external-attacher
+  repository: quay.io/k8scsi/csi-attacher
+  tag: "v3.0.0-rc1"
+- name: csi-provisioner
+  sourceRepository: https://github.com/kubernetes-csi/external-provisioner
+  repository: gcr.io/k8s-staging-sig-storage/csi-provisioner
+  tag: "v2.0.0-rc2"
+- name: csi-resizer
+  sourceRepository: https://github.com/kubernetes-csi/external-resizer
+  repository: quay.io/k8scsi/csi-resizer
+  tag: "v0.6.0-rc1"
+- name: csi-liverness-probe
+  sourceRepository: https://github.com/kubernetes-csi/livenessprobe
+  repository:   quay.io/k8scsi/livenessprobe
+  tag: "v1.1.0"
+- name: csi-driver-registrar
+  sourceRepository: https://github.com/kubernetes-csi/node-driver-registrar
+  repository: quay.io/k8scsi/csi-node-driver-registrar
+  tag: v1.1.0
+- name: csi-hostpath-driver
+  sourceRepository: https://github.com/kubernetes-csi/csi-driver-host-path
+  repository: quay.io/k8scsi/hostpathplugin
+  tag: "v1.4.0-rc2"

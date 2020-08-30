@@ -32,7 +32,9 @@ import (
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	storagev1beta1 "k8s.io/api/storage/v1beta1"
 	"k8s.io/apiserver/pkg/authentication/user"
 	autoscalingv1beta2 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta2"
 )
@@ -70,6 +72,45 @@ var (
 						SigningCA:  cas[v1beta1constants.SecretNameCACluster],
 					},
 				},
+				&secrets.ControlPlaneSecretConfig{
+					CertificateSecretConfig: &secrets.CertificateSecretConfig{
+						Name:         "csi-attacher",
+						CommonName:   "system:csi-attacher",
+						Organization: []string{user.SystemPrivilegedGroup},
+						CertType:     secrets.ClientCert,
+						SigningCA:    cas[v1beta1constants.SecretNameCACluster],
+					},
+					KubeConfigRequest: &secrets.KubeConfigRequest{
+						ClusterName:  clusterName,
+						APIServerURL: v1beta1constants.DeploymentNameKubeAPIServer,
+					},
+				},
+				&secrets.ControlPlaneSecretConfig{
+					CertificateSecretConfig: &secrets.CertificateSecretConfig{
+						Name:         "csi-provisioner",
+						CommonName:   "system:csi-provisioner",
+						Organization: []string{user.SystemPrivilegedGroup},
+						CertType:     secrets.ClientCert,
+						SigningCA:    cas[v1beta1constants.SecretNameCACluster],
+					},
+					KubeConfigRequest: &secrets.KubeConfigRequest{
+						ClusterName:  clusterName,
+						APIServerURL: v1beta1constants.DeploymentNameKubeAPIServer,
+					},
+				},
+				&secrets.ControlPlaneSecretConfig{
+					CertificateSecretConfig: &secrets.CertificateSecretConfig{
+						Name:         "csi-resizer",
+						CommonName:   "system:csi-resizer",
+						Organization: []string{user.SystemPrivilegedGroup},
+						CertType:     secrets.ClientCert,
+						SigningCA:    cas[v1beta1constants.SecretNameCACluster],
+					},
+					KubeConfigRequest: &secrets.KubeConfigRequest{
+						ClusterName:  clusterName,
+						APIServerURL: v1beta1constants.DeploymentNameKubeAPIServer,
+					},
+				},
 			}
 		},
 	}
@@ -99,6 +140,19 @@ var (
 					{Type: &autoscalingv1beta2.VerticalPodAutoscaler{}, Name: kubevirt.CloudControllerManagerName + "-vpa"},
 				},
 			},
+			{
+				Name: "csi-hostpath",
+				Images: []string{kubevirt.CSIAttacherImageName, kubevirt.CSIProvisionerImageName, kubevirt.CSIResizerImageName, kubevirt.CSILivenessProbeImageName,
+					kubevirt.CSIHostPathDriverImageName},
+				Objects: []*chart.Object{
+					{Type: &v1.Service{}, Name: "csi-attacher"},
+					{Type: &appsv1.StatefulSet{}, Name: "csi-attacher"},
+					{Type: &v1.Service{}, Name: "csi-provisioner"},
+					{Type: &appsv1.StatefulSet{}, Name: "csi-provisioner"},
+					{Type: &v1.Service{}, Name: "csi-resizer"},
+					{Type: &appsv1.StatefulSet{}, Name: "csi-resizer"},
+				},
+			},
 		},
 	}
 
@@ -113,6 +167,21 @@ var (
 					{Type: &rbacv1.ClusterRoleBinding{}, Name: "system:cloud-controller-manager"},
 					{Type: &rbacv1.ClusterRole{}, Name: "system:controller:cloud-node-controller"},
 					{Type: &rbacv1.ClusterRoleBinding{}, Name: "system:controller:cloud-node-controller"},
+				},
+			},
+			{
+				Name:   "csi-hostpath",
+				Images: []string{kubevirt.CSINodeDriverRegistrarImageName, kubevirt.CSIHostPathDriverImageName, kubevirt.CSILivenessProbeImageName},
+				Objects: []*chart.Object{
+					{Type: &rbacv1.ClusterRole{}, Name: "gardener.cloud:csi-attacher"},
+					{Type: &rbacv1.ClusterRoleBinding{}, Name: "gardener.cloud:csi-attacher"},
+					{Type: &rbacv1.ClusterRole{}, Name: "gardener.cloud:csi-provisioner"},
+					{Type: &rbacv1.ClusterRoleBinding{}, Name: "gardener.cloud:csi-provisioner"},
+					{Type: &rbacv1.ClusterRole{}, Name: "gardener.cloud:csi-resizer"},
+					{Type: &rbacv1.ClusterRoleBinding{}, Name: "gardener.cloud:csi-resizer"},
+					{Type: &storagev1beta1.CSIDriver{}, Name: "hostpath.csi.k8s.io"},
+					{Type: &v1.Service{}, Name: "csi-hostpathplugin"},
+					{Type: &appsv1.StatefulSet{}, Name: "csi-hostpathplugin"},
 				},
 			},
 		},

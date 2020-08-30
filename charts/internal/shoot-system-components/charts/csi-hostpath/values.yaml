@@ -1,0 +1,5 @@
+images:
+  csi-driver-registrar: image-repository:image-tag
+  csi-hostpath-driver: image-repository:image-tag
+  csi-liveness-probe: image-repository:image-tag
+kubernetesVersion: 1.7.5
