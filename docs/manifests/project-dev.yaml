@@ -1,0 +1,17 @@
+apiVersion: core.gardener.cloud/v1beta1
+kind: Project
+metadata:
+  name: dev
+spec:
+  owner:
+    apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: john.doe@example.com
+  members:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: john.doe@example.com
+    role: admin
+    roles:
+    - owner
+  namespace: garden-dev

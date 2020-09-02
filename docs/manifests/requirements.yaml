@@ -1,0 +1,13 @@
+apiVersion: gem.gardener.cloud/v1alpha1
+kind: Requirements
+requirements:
+- name: github.com/gardener/gardener-extension-provider-gcp/example
+  version: v1.9.1
+- name: github.com/gardener/gardener-extension-provider-kubevirt/example
+  revision: 358efa23de7af915922ee6cebfb0321d4691c48b
+- name: github.com/gardener/gardener-extension-os-ubuntu/example
+  version: v1.6.0
+- name: github.com/gardener/gardener-extension-networking-calico/example
+  version: v1.9.1
+- name: github.com/gardener/external-dns-management/examples
+  version: v0.7.18

@@ -1,0 +1,69 @@
+kind: Shoot
+apiVersion: core.gardener.cloud/v1beta1
+metadata:
+  name: <prefix>-gcp-vmx
+  namespace: garden-dev
+  annotations:
+    gardener.cloud/created-by: john.doe@example.com
+spec:
+  addons:
+    kubernetesDashboard:
+      enabled: false
+    nginxIngress:
+      enabled: true
+      externalTrafficPolicy: Cluster
+  cloudProfileName: gcp
+  hibernation:
+    enabled: false
+  kubernetes:
+    allowPrivilegedContainers: true
+    kubeAPIServer:
+      enableBasicAuthentication: false
+    kubeControllerManager:
+      nodeCIDRMaskSize: 24
+    kubeProxy:
+      mode: IPTables
+    version: 1.18.2
+  networking:
+    type: calico
+    pods: 10.225.128.0/17
+    nodes: 10.250.0.0/16
+    services: 10.225.0.0/17
+  maintenance:
+    autoUpdate:
+      kubernetesVersion: true
+      machineImageVersion: true
+    timeWindow:
+      begin: 220000+0000
+      end: 230000+0000
+  provider:
+    type: gcp
+    controlPlaneConfig:
+      apiVersion: gcp.provider.extensions.gardener.cloud/v1alpha1
+      kind: ControlPlaneConfig
+      zone: europe-west1-c
+    infrastructureConfig:
+      apiVersion: gcp.provider.extensions.gardener.cloud/v1alpha1
+      kind: InfrastructureConfig
+      networks:
+        workers: 10.250.0.0/16
+    workers:
+    - name: worker-test
+      machine:
+        type: n1-standard-16
+        image:
+          name: ubuntu
+          version: 18.4.20200228-vmx
+      maximum: 1
+      minimum: 1
+      maxSurge: 1
+      maxUnavailable: 0
+      volume:
+        type: pd-standard
+        size: 50Gi
+      zones:
+      - europe-west1-c
+  purpose: evaluation
+  region: europe-west1
+  secretBindingName: shoot-operator-gcp
+  seedName: gcp1
