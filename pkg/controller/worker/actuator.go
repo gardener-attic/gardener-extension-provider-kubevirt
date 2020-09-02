@@ -107,17 +107,22 @@ func NewWorkerDelegate(
 	worker *extensionsv1alpha1.Worker,
 	cluster *extensionscontroller.Cluster,
 ) (genericactuator.WorkerDelegate, error) {
-	config, err := helper.GetCloudProfileConfig(cluster)
-	if err != nil {
-		return nil, err
+	var cloudProfileConfig *apiskubevirt.CloudProfileConfig
+	var err error
+	if cluster != nil {
+		cloudProfileConfig, err = helper.GetCloudProfileConfig(cluster.CloudProfile)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	return &workerDelegate{
 		ClientContext: clientContext,
 
 		seedChartApplier: seedChartApplier,
 		serverVersion:    serverVersion,
 
-		cloudProfileConfig: config,
+		cloudProfileConfig: cloudProfileConfig,
 		cluster:            cluster,
 		worker:             worker,
 	}, nil

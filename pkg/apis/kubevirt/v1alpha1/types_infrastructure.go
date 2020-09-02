@@ -21,16 +21,57 @@ import (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// InfrastructureConfig infrastructure configuration resource
+// InfrastructureConfig is the infrastructure configuration resource.
 type InfrastructureConfig struct {
 	metav1.TypeMeta `json:",inline"`
+	// Networks is the configuration of the infrastructure networks.
+	Networks NetworksConfig `json:"networks"`
+}
 
-	// TODO: add network specific fields
+// NetworksConfig contains information about the configuration of the infrastructure networks.
+type NetworksConfig struct {
+	// SharedNetworks is a list of existing networks that can be shared between multiple clusters, e.g. storage networks.
+	// +optional
+	SharedNetworks []NetworkAttachmentDefinitionReference `json:"sharedNetworks,omitempty"`
+	// TenantNetworks is a list of "tenant" networks that are only used by this cluster.
+	// +optional
+	TenantNetworks []TenantNetwork `json:"tenantNetworks,omitempty"`
+}
+
+// NetworkAttachmentDefinitionReference represents a NetworkAttachmentDefinition reference.
+type NetworkAttachmentDefinitionReference struct {
+	// Name is the name of the referenced NetworkAttachmentDefinition.
+	Name string `json:"name"`
+	// Namespace is the namespace of the referenced NetworkAttachmentDefinition.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// TenantNetwork represents a "tenant" network that is only used by a single cluster.
+type TenantNetwork struct {
+	// Name is the name of the tenant network.
+	Name string `json:"name"`
+	// Config is the configuration of the tenant network.
+	Config string `json:"config"`
+	// Default is whether the tenant network is the default or not.
+	// +optional
+	Default bool `json:"default,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// InfrastructureStatus contains information about created infrastructure resources.
+// InfrastructureStatus contains information about the status of the infrastructure resources.
 type InfrastructureStatus struct {
 	metav1.TypeMeta `json:",inline"`
+	// Networks is the status of the infrastructure networks.
+	Networks []NetworkStatus `json:"networks"`
+}
+
+// NetworkStatus contains information about the status of an infrastructure network.
+type NetworkStatus struct {
+	// Name is the name (in the format <name> or <namespace>/<name>) of the network.
+	Name string `json:"name"`
+	// Default is whether the network is the default or not.
+	// +optional
+	Default bool `json:"default,omitempty"`
 }

@@ -16,35 +16,149 @@ package infrastructure
 
 import (
 	"context"
+	"fmt"
 
-	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
-	apiskubevirtv1alpha1 "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/v1alpha1"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/helper"
+	kubevirtv1alpha1 "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/v1alpha1"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
 
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
+	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
+	networkv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	"github.com/pkg/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+)
+
+const (
+	// clusterLabel is the label to put on a NetworkAttachmentDefinition object that identifies its cluster.
+	clusterLabel = "kubevirt.provider.extensions.gardener.cloud/cluster"
 )
 
 func (a *actuator) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *extensionscontroller.Cluster) error {
-	// TODO: here, controller should ensure the network setup
-	status := &apiskubevirt.InfrastructureStatus{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: api.SchemeGroupVersion.String(),
-			Kind:       "InfrastructureStatus",
-		},
+	// Get InfrastructureConfig from the Infrastructure resource
+	config, err := helper.GetInfrastructureConfig(infra)
+	if err != nil {
+		return errors.Wrap(err, "could not get InfrastructureConfig from infrastructure")
 	}
 
-	return extensionscontroller.TryUpdateStatus(ctx, retry.DefaultBackoff, a.Client(), infra, func() error {
-		statusV1alpha1 := &apiskubevirtv1alpha1.InfrastructureStatus{}
-		err := a.Scheme().Convert(status, statusV1alpha1, nil)
-		if err != nil {
-			return err
+	// Get the kubeconfig of the provider cluster
+	kubeconfig, err := kubevirt.GetKubeConfig(ctx, a.Client(), infra.Spec.SecretRef)
+	if err != nil {
+		return errors.Wrap(err, "could not get kubeconfig from infrastructure secret reference")
+	}
+
+	// Get a client and a namespace for the provider cluster from the kubeconfig
+	providerClient, namespace, err := kubevirt.GetClient(kubeconfig)
+	if err != nil {
+		return errors.Wrap(err, "could not get client from kubeconfig")
+	}
+
+	var networks []kubevirtv1alpha1.NetworkStatus
+
+	// Initialize labels
+	nadLabels := map[string]string{
+		clusterLabel: infra.Namespace,
+	}
+
+	// Create or update tenant networks
+	for _, tenantNetwork := range config.Networks.TenantNetworks {
+		// Determine NetworkAttachmentDefinition name
+		name := fmt.Sprintf("%s-%s", infra.Namespace, tenantNetwork.Name)
+
+		// Create or update the NetworkAttachmentDefinition of the tenant network in the provider cluster
+		a.logger.Info("Creating or updating NetworkAttachmentDefinition", "name", name, "namespace", namespace)
+		nad := &networkv1.NetworkAttachmentDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+				Labels:    nadLabels,
+			},
 		}
-		statusV1alpha1.SetGroupVersionKind(apiskubevirtv1alpha1.SchemeGroupVersion.WithKind("InfrastructureStatus"))
-		infra.Status.ProviderStatus = &runtime.RawExtension{Object: statusV1alpha1}
+		if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			_, err := controllerutil.CreateOrUpdate(ctx, providerClient, nad, func() error {
+				nad.Spec.Config = tenantNetwork.Config
+				return nil
+			})
+			return err
+		}); err != nil {
+			return errors.Wrapf(err, "could not create or update NetworkAttachmentDefinition '%s'", kutil.ObjectName(nad))
+		}
+
+		// Add the tenant network to the list of networks
+		networks = append(networks, kubevirtv1alpha1.NetworkStatus{
+			Name:    kutil.ObjectName(nad),
+			Default: tenantNetwork.Default,
+		})
+	}
+
+	// Delete old tenant networks
+	// List all tenant networks in namespace
+	nadList := &networkv1.NetworkAttachmentDefinitionList{}
+	if err := providerClient.List(ctx, nadList, client.InNamespace(namespace), client.MatchingLabels(nadLabels)); err != nil {
+		return errors.Wrap(err, "could not list NetworkAttachmentDefinitions")
+	}
+	for _, nad := range nadList.Items {
+		// If the network is no longer listed in the InfrastructureConfig, delete it
+		if !containsNetworkWithName(networks, kutil.ObjectName(&nad)) {
+			// Delete the NetworkAttachmentDefinition of the tenant network in the provider cluster
+			a.logger.Info("Deleting NetworkAttachmentDefinition", "name", nad.Name, "namespace", nad.Namespace)
+			if err := client.IgnoreNotFound(providerClient.Delete(ctx, &nad)); err != nil {
+				return errors.Wrapf(err, "could not delete NetworkAttachmentDefinition '%s'", kutil.ObjectName(&nad))
+			}
+		}
+	}
+
+	// Check shared networks
+	for _, sharedNetwork := range config.Networks.SharedNetworks {
+		// Determine NetworkAttachmentDefinition namespace
+		ns := sharedNetwork.Namespace
+		if ns == "" {
+			ns = namespace
+		}
+
+		// Get the NetworkAttachmentDefinition of the shared network from the provider cluster
+		a.logger.Info("Getting NetworkAttachmentDefinition", "name", sharedNetwork.Name, "namespace", ns)
+		nadKey := kutil.Key(ns, sharedNetwork.Name)
+		nad := &networkv1.NetworkAttachmentDefinition{}
+		if err := providerClient.Get(ctx, nadKey, nad); err != nil {
+			if apierrors.IsNotFound(err) {
+				return errors.Wrapf(err, "NetworkAttachmentDefinition '%v' not found", nadKey)
+			}
+			return errors.Wrapf(err, "could not get NetworkAttachmentDefinition '%v'", nadKey)
+		}
+
+		// Add the full NetworkAttachmentDefinition name to the list of networks
+		networks = append(networks, kubevirtv1alpha1.NetworkStatus{
+			Name: kutil.ObjectName(nad),
+		})
+	}
+
+	// Update infrastructure status
+	a.logger.Info("Updating infrastructure status")
+	status := &kubevirtv1alpha1.InfrastructureStatus{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: kubevirtv1alpha1.SchemeGroupVersion.String(),
+			Kind:       "InfrastructureStatus",
+		},
+		Networks: networks,
+	}
+	return extensionscontroller.TryUpdateStatus(ctx, retry.DefaultBackoff, a.Client(), infra, func() error {
+		infra.Status.ProviderStatus = &runtime.RawExtension{Object: status}
 		return nil
 	})
+}
+
+func containsNetworkWithName(networks []kubevirtv1alpha1.NetworkStatus, name string) bool {
+	for _, networkStatus := range networks {
+		if networkStatus.Name == name {
+			return true
+		}
+	}
+	return false
 }

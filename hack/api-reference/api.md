@@ -127,7 +127,7 @@ CloudControllerManagerConfig
 <h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.InfrastructureConfig">InfrastructureConfig
 </h3>
 <p>
-<p>InfrastructureConfig infrastructure configuration resource</p>
+<p>InfrastructureConfig is the infrastructure configuration resource.</p>
 </p>
 <table>
 <thead>
@@ -153,6 +153,19 @@ kubevirt.provider.extensions.gardener.cloud/v1alpha1
 string
 </td>
 <td><code>InfrastructureConfig</code></td>
+</tr>
+<tr>
+<td>
+<code>networks</code></br>
+<em>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.NetworksConfig">
+NetworksConfig
+</a>
+</em>
+</td>
+<td>
+<p>Networks is the configuration of the infrastructure networks.</p>
+</td>
 </tr>
 </tbody>
 </table>
@@ -240,7 +253,7 @@ map[string]bool
 <h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.InfrastructureStatus">InfrastructureStatus
 </h3>
 <p>
-<p>InfrastructureStatus contains information about created infrastructure resources.</p>
+<p>InfrastructureStatus contains information about the status of the infrastructure resources.</p>
 </p>
 <table>
 <thead>
@@ -250,6 +263,19 @@ map[string]bool
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+<code>networks</code></br>
+<em>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.NetworkStatus">
+[]NetworkStatus
+</a>
+</em>
+</td>
+<td>
+<p>Networks is the status of the infrastructure networks.</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.MachineDeploymentConfig">MachineDeploymentConfig
@@ -414,6 +440,190 @@ string
 </td>
 <td>
 <p>Versions contains versions and a provider-specific identifier.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.NetworkAttachmentDefinitionReference">NetworkAttachmentDefinitionReference
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.NetworksConfig">NetworksConfig</a>)
+</p>
+<p>
+<p>NetworkAttachmentDefinitionReference represents a NetworkAttachmentDefinition reference.</p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>name</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Name is the name of the referenced NetworkAttachmentDefinition.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>namespace</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Namespace is the namespace of the referenced NetworkAttachmentDefinition.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.NetworkStatus">NetworkStatus
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.InfrastructureStatus">InfrastructureStatus</a>)
+</p>
+<p>
+<p>NetworkStatus contains information about the status of an infrastructure network.</p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>name</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Name is the name (in the format <name> or <namespace>/<name>) of the network.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>default</code></br>
+<em>
+bool
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Default is whether the network is the default or not.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.NetworksConfig">NetworksConfig
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.InfrastructureConfig">InfrastructureConfig</a>)
+</p>
+<p>
+<p>NetworksConfig contains information about the configuration of the infrastructure networks.</p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>sharedNetworks</code></br>
+<em>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.NetworkAttachmentDefinitionReference">
+[]NetworkAttachmentDefinitionReference
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>SharedNetworks is a list of existing networks that can be shared between multiple clusters, e.g. storage networks.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>tenantNetworks</code></br>
+<em>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.TenantNetwork">
+[]TenantNetwork
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>TenantNetworks is a list of &ldquo;tenant&rdquo; networks that are only used by this cluster.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.TenantNetwork">TenantNetwork
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.NetworksConfig">NetworksConfig</a>)
+</p>
+<p>
+<p>TenantNetwork represents a &ldquo;tenant&rdquo; network that is only used by a single cluster.</p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>name</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Name is the name of the tenant network.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>config</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Config is the configuration of the tenant network.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>default</code></br>
+<em>
+bool
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Default is whether the tenant network is the default or not.</p>
 </td>
 </tr>
 </tbody>

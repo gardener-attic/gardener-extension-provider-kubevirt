@@ -92,7 +92,7 @@ machineImages:
 
 	Describe("#GetCloudProfileConfig", func() {
 		It("should decode the CloudProfileConfig", func() {
-			result, err := helper.GetCloudProfileConfig(cluster)
+			result, err := helper.GetCloudProfileConfig(cluster.CloudProfile)
 			Expect(err).To(BeNil())
 			Expect(result).To(Equal(cloudProfileConfig))
 		})

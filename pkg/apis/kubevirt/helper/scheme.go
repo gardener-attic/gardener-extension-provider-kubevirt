@@ -16,14 +16,15 @@ package helper
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
+	api "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/install"
 
-	"github.com/gardener/gardener/extensions/pkg/controller"
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	"github.com/gardener/gardener/pkg/operation/common"
 	"github.com/gardener/gardener/pkg/utils"
+	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/pkg/errors"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -103,23 +104,46 @@ func ApplyMachineClassCRDs(ctx context.Context, config *rest.Config) error {
 	return err
 }
 
-// GetCloudProfileConfig gets a cloud profile config of cloud profile CR
-func GetCloudProfileConfig(cluster *controller.Cluster) (*kubevirt.CloudProfileConfig, error) {
-	var cloudProfileConfig kubevirt.CloudProfileConfig
-
-	if cluster == nil {
-		return nil, nil
-	}
-	if cluster.CloudProfile == nil {
-		return nil, fmt.Errorf("missing cluster cloud profile")
-	}
-
-	profile := cluster.CloudProfile
-	if profile.Spec.ProviderConfig != nil && profile.Spec.ProviderConfig.Raw != nil {
-		if _, _, err := decoder.Decode(profile.Spec.ProviderConfig.Raw, nil, &cloudProfileConfig); err != nil {
-			return nil, errors.Wrapf(err, "could not decode providerConfig of cloudProfile")
+// GetCloudProfileConfig extracts the CloudProfileConfig from the ProviderConfig section of the given CloudProfile.
+func GetCloudProfileConfig(cloudProfile *gardencorev1beta1.CloudProfile) (*api.CloudProfileConfig, error) {
+	cloudProfileConfig := &api.CloudProfileConfig{}
+	if cloudProfile.Spec.ProviderConfig != nil && cloudProfile.Spec.ProviderConfig.Raw != nil {
+		if _, _, err := decoder.Decode(cloudProfile.Spec.ProviderConfig.Raw, nil, cloudProfileConfig); err != nil {
+			return nil, errors.Wrapf(err, "could not decode providerConfig of cloudProfile '%s'", kutil.ObjectName(cloudProfile))
 		}
 	}
+	return cloudProfileConfig, nil
+}
 
-	return &cloudProfileConfig, nil
+// GetInfrastructureConfig extracts the InfrastructureConfig from the ProviderConfig section of the given Infrastructure.
+func GetInfrastructureConfig(infra *extensionsv1alpha1.Infrastructure) (*api.InfrastructureConfig, error) {
+	config := &api.InfrastructureConfig{}
+	if infra.Spec.ProviderConfig != nil && infra.Spec.ProviderConfig.Raw != nil {
+		if _, _, err := decoder.Decode(infra.Spec.ProviderConfig.Raw, nil, config); err != nil {
+			return nil, errors.Wrapf(err, "could not decode providerConfig of infrastructure '%s'", kutil.ObjectName(infra))
+		}
+	}
+	return config, nil
+}
+
+// GetControlPlaneConfig extracts the ControlPlaneConfig from the ProviderConfig section of the given ControlPlane.
+func GetControlPlaneConfig(cp *extensionsv1alpha1.ControlPlane) (*api.ControlPlaneConfig, error) {
+	config := &api.ControlPlaneConfig{}
+	if cp.Spec.ProviderConfig != nil && cp.Spec.ProviderConfig.Raw != nil {
+		if _, _, err := decoder.Decode(cp.Spec.ProviderConfig.Raw, nil, config); err != nil {
+			return nil, errors.Wrapf(err, "could not decode providerConfig of controlplane '%s'", kutil.ObjectName(cp))
+		}
+	}
+	return config, nil
+}
+
+// GetInfrastructureStatus extracts the InfrastructureStatus from the InfrastructureProviderStatus section of the given Worker.
+func GetInfrastructureStatus(w *extensionsv1alpha1.Worker) (*api.InfrastructureStatus, error) {
+	status := &api.InfrastructureStatus{}
+	if w.Spec.InfrastructureProviderStatus != nil && w.Spec.InfrastructureProviderStatus.Raw != nil {
+		if _, _, err := decoder.Decode(w.Spec.InfrastructureProviderStatus.Raw, nil, status); err != nil {
+			return nil, errors.Wrapf(err, "could not decode infrastructureProviderStatus of worker '%s'", kutil.ObjectName(w))
+		}
+	}
+	return status, nil
 }
