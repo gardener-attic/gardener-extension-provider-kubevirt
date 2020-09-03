@@ -1,4 +1,5 @@
 {{- if eq .Values.gardener.seed.provider "kubevirt" }}
+{{- if .Values.config.etcd.storage.className }}
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -6,4 +7,5 @@ metadata:
   labels:
 {{ include "labels" . | indent 4 }}
 provisioner: kubernetes.io/no-provisioner
+{{- end }}
 {{- end }}

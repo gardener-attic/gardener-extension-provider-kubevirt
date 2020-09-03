@@ -19,5 +19,7 @@ data:
 {{- end }}
     etcd:
       storage:
+{{- if .Values.config.etcd.storage.className }}
         className: {{ .Values.config.etcd.storage.className }}
+{{- end }}
         capacity: {{ .Values.config.etcd.storage.capacity }}
