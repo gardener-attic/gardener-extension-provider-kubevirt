@@ -51,7 +51,6 @@ config:
     burst: 130
   etcd:
     storage:
-      className: gardener.cloud-fast
       capacity: 25Gi
 
 gardener:
