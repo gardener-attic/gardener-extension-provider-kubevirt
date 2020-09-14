@@ -49,7 +49,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
-	cdi "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -419,17 +419,17 @@ func generateKubeVirtSecret(c *mockclient.MockClient) {
 func generateKubeVirtDataVolumes(providerClient *mockclient.MockClient) {
 	providerClient.
 		EXPECT().
-		Get(context.TODO(), gomock.Any(), gomock.AssignableToTypeOf(&cdi.DataVolume{})).
-		DoAndReturn(func(_ context.Context, _ client.ObjectKey, dataVolume *cdi.DataVolume) error {
-			dataVolume.Spec = cdi.DataVolumeSpec{
+		Get(context.TODO(), gomock.Any(), gomock.AssignableToTypeOf(&cdicorev1alpha1.DataVolume{})).
+		DoAndReturn(func(_ context.Context, _ client.ObjectKey, dataVolume *cdicorev1alpha1.DataVolume) error {
+			dataVolume.Spec = cdicorev1alpha1.DataVolumeSpec{
 				PVC: &corev1.PersistentVolumeClaimSpec{
 					StorageClassName: pointer.StringPtr("standard"),
 					AccessModes: []corev1.PersistentVolumeAccessMode{
 						"ReadWriteOnce",
 					},
 				},
-				Source: cdi.DataVolumeSource{
-					HTTP: &cdi.DataVolumeSourceHTTP{
+				Source: cdicorev1alpha1.DataVolumeSource{
+					HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
 						URL: "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img",
 					},
 				},

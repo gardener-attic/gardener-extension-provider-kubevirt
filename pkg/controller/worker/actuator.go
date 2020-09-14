@@ -31,6 +31,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 )
 
 const clusterLabel = "kubevirt.provider.extensions.gardener.cloud/cluster"
@@ -56,6 +57,15 @@ func NewActuator(workerActuator worker.Actuator, client client.Client, logger lo
 		dataVolumeManager: dataVolumeManager,
 		client:            client,
 	}
+}
+
+func (a *actuator) InjectFunc(f inject.Func) error {
+	return f(a.Actuator)
+}
+
+func (a *actuator) InjectClient(client client.Client) error {
+	a.client = client
+	return nil
 }
 
 type delegateFactory struct {
