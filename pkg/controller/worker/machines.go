@@ -180,8 +180,9 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			"sshKeys":          []string{string(w.worker.Spec.SSHPublicKey)},
 			"networks":         networks,
 			"tags": map[string]string{
-				"mcm.gardener.cloud/cluster": w.worker.Namespace,
-				"mcm.gardener.cloud/role":    "node",
+				"mcm.gardener.cloud/cluster":      w.worker.Namespace,
+				"mcm.gardener.cloud/role":         "node",
+				"mcm.gardener.cloud/machineclass": className,
 			},
 			"secret": map[string]interface{}{
 				"cloudConfig": string(pool.UserData),

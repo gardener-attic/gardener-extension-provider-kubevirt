@@ -210,27 +210,28 @@ var _ = Describe("Machines", func() {
 			It("should return the expected machine deployments", func() {
 				generateKubeVirtSecret(c)
 
-				machineClassTemplate := map[string]interface{}{
-					"storageClassName": "standard",
-					"sourceURL":        ubuntuSourceURL,
-					"tags": map[string]string{
-						"mcm.gardener.cloud/cluster": namespace,
-						"mcm.gardener.cloud/role":    "node",
-					},
-					"secret": map[string]interface{}{
-						"cloudConfig": "user-data",
-						"kubeconfig":  kubeconfig,
-					},
-				}
-
 				machineDeploymentName1 := fmt.Sprintf("%s-%s-z", namespace, namePool1)
 				machineDeploymentName2 := fmt.Sprintf("%s-%s-z", namespace, namePool2)
 
 				machineClassName1 := fmt.Sprintf("%s-%s", machineDeploymentName1, workerPoolHash1)
 				machineClassName2 := fmt.Sprintf("%s-%s", machineDeploymentName2, workerPoolHash2)
 
+				machineClassTemplate1 := map[string]interface{}{
+					"storageClassName": "standard",
+					"sourceURL":        ubuntuSourceURL,
+					"secret": map[string]interface{}{
+						"cloudConfig": "user-data",
+						"kubeconfig":  kubeconfig,
+					},
+					"tags": map[string]string{
+						"mcm.gardener.cloud/cluster":      namespace,
+						"mcm.gardener.cloud/role":         "node",
+						"mcm.gardener.cloud/machineclass": machineClassName1,
+					},
+				}
+
 				machineClass1 := generateMachineClass(
-					machineClassTemplate,
+					machineClassTemplate1,
 					machineClassName1,
 					"8Gi",
 					"2",
@@ -239,8 +240,14 @@ var _ = Describe("Machines", func() {
 					networkName,
 				)
 
+				machineClassTemplate1["tags"] = map[string]string{
+					"mcm.gardener.cloud/cluster":      namespace,
+					"mcm.gardener.cloud/role":         "node",
+					"mcm.gardener.cloud/machineclass": machineClassName2,
+				}
+
 				machineClass2 := generateMachineClass(
-					machineClassTemplate,
+					machineClassTemplate1,
 					machineClassName2,
 					"8Gi",
 					"300m",
@@ -443,7 +450,8 @@ func generateKubeVirtDataVolumes(providerClient *mockclient.MockClient) {
 		AnyTimes()
 }
 
-func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, cpu, memory string, sshPublicKey []byte, networkName string) map[string]interface{} {
+func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, cpu, memory string, sshPublicKey []byte,
+	networkName string) map[string]interface{} {
 	out := make(map[string]interface{})
 
 	for k, v := range classTemplate {
