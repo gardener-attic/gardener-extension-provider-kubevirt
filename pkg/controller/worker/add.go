@@ -15,12 +15,18 @@
 package worker
 
 import (
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/imagevector"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
+	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
+	"github.com/gardener/gardener/extensions/pkg/util"
 
 	"github.com/gardener/gardener/extensions/pkg/controller/worker"
+	"github.com/gardener/gardener/extensions/pkg/controller/worker/genericactuator"
 	machinescheme "github.com/gardener/machine-controller-manager/pkg/client/clientset/versioned/scheme"
+	"github.com/pkg/errors"
 	apiextensionsscheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
@@ -48,8 +54,30 @@ func AddToManagerWithOptions(mgr manager.Manager, opts AddOptions) error {
 		return err
 	}
 
+	dataVolumeManager, err := kubevirt.NewDefaultDataVolumeManager(kubevirt.ClientFactoryFunc(kubevirt.GetClient))
+	if err != nil {
+		return errors.Wrap(err, "could not create kubevirt data volume manager")
+	}
+
+	delegateFactory := &delegateFactory{
+		logger:            workerLogger,
+		dataVolumeManager: dataVolumeManager,
+	}
+
+	logger := log.Log.WithName("worker-actuator")
+
 	return worker.Add(mgr, worker.AddArgs{
-		Actuator:          NewActuator(),
+		Actuator: NewActuator(genericactuator.NewActuator(
+			workerLogger,
+			delegateFactory,
+			kubevirt.MachineControllerManagerName,
+			mcmChart,
+			mcmShootChart,
+			imagevector.ImageVector(),
+			extensionscontroller.ChartRendererFactoryFunc(util.NewChartRendererForShoot)),
+			delegateFactory.Client(),
+			logger,
+			dataVolumeManager),
 		ControllerOptions: opts.Controller,
 		Predicates:        worker.DefaultPredicates(opts.IgnoreOperationAnnotation),
 		Type:              kubevirt.Type,
