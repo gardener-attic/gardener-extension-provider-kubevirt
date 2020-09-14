@@ -33,7 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
-	cdi "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
 // MachineClassKind yields the name of the KubeVirt machine class.
@@ -78,7 +78,7 @@ func (w *workerDelegate) DeployMachineClasses(ctx context.Context) error {
 			machineClassName = machineClass["name"].(string)
 		)
 
-		dataVolumeSpec := cdi.DataVolumeSpec{
+		dataVolumeSpec := cdicorev1alpha1.DataVolumeSpec{
 			PVC: &v1.PersistentVolumeClaimSpec{
 				StorageClassName: storageClassName,
 				AccessModes: []v1.PersistentVolumeAccessMode{
@@ -88,8 +88,8 @@ func (w *workerDelegate) DeployMachineClasses(ctx context.Context) error {
 					Requests: pvcSize,
 				},
 			},
-			Source: cdi.DataVolumeSource{
-				HTTP: &cdi.DataVolumeSourceHTTP{
+			Source: cdicorev1alpha1.DataVolumeSource{
+				HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
 					URL: sourceUrl,
 				},
 			},

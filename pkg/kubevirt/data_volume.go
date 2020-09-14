@@ -22,7 +22,7 @@ import (
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	cdi "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -47,12 +47,12 @@ func (f ClientFactoryFunc) GetClient(kubeconfig []byte) (client.Client, string, 
 // DataVolumeManager manages Kubevirt DataVolume operations.
 type DataVolumeManager interface {
 	// CreateOrUpdateDataVolume creates a new kubevirt Data Volume from the data volume specs and in the passed namespace.
-	CreateOrUpdateDataVolume(ctx context.Context, kubeconfig []byte, name string, labels map[string]string, dataVolumeSpec cdi.DataVolumeSpec) error
+	CreateOrUpdateDataVolume(ctx context.Context, kubeconfig []byte, name string, labels map[string]string, dataVolumeSpec cdicorev1alpha1.DataVolumeSpec) error
 	// GetDataVolume fetches the specified volume by the passed name and namespace and return DataVolumeNotFoundError error in case of
 	// not found object error.
-	GetDataVolume(ctx context.Context, kubeconfig []byte, name string) (*cdi.DataVolume, error)
+	GetDataVolume(ctx context.Context, kubeconfig []byte, name string) (*cdicorev1alpha1.DataVolume, error)
 	// ListDataVolumes lists all the Data Volumes which exists in the passed namespace.
-	ListDataVolumes(ctx context.Context, kubeconfig []byte, listOpts ...client.ListOption) (*cdi.DataVolumeList, error)
+	ListDataVolumes(ctx context.Context, kubeconfig []byte, listOpts ...client.ListOption) (*cdicorev1alpha1.DataVolumeList, error)
 	// DeleteDataVolume delete the DataVolume based on the passed name and namespace.
 	DeleteDataVolume(ctx context.Context, kubeconfig []byte, name string) error
 }
@@ -71,13 +71,13 @@ func NewDefaultDataVolumeManager(client ClientFactory) (DataVolumeManager, error
 }
 
 // CreateOrUpdateDataVolume creates a new kubevirt Data Volume from the data volume specs and in the passed namespace.
-func (d *defaultDataVolumeManager) CreateOrUpdateDataVolume(ctx context.Context, kubeconfig []byte, name string, labels map[string]string, dataVolumeSpec cdi.DataVolumeSpec) error {
+func (d *defaultDataVolumeManager) CreateOrUpdateDataVolume(ctx context.Context, kubeconfig []byte, name string, labels map[string]string, dataVolumeSpec cdicorev1alpha1.DataVolumeSpec) error {
 	c, namespace, err := d.client.GetClient(kubeconfig)
 	if err != nil {
 		return errors.Wrap(err, "could not create kubevirt client")
 	}
 
-	dataVolume := &cdi.DataVolume{}
+	dataVolume := &cdicorev1alpha1.DataVolume{}
 	dataVolume.Namespace = namespace
 	dataVolume.Name = name
 
@@ -96,13 +96,13 @@ func (d *defaultDataVolumeManager) CreateOrUpdateDataVolume(ctx context.Context,
 
 // GetDataVolume fetches the specified volume by the passed name and namespace and return DataVolumeNotFoundError error in case of
 // not found object error.
-func (d *defaultDataVolumeManager) GetDataVolume(ctx context.Context, kubeconfig []byte, name string) (*cdi.DataVolume, error) {
+func (d *defaultDataVolumeManager) GetDataVolume(ctx context.Context, kubeconfig []byte, name string) (*cdicorev1alpha1.DataVolume, error) {
 	c, namespace, err := d.client.GetClient(kubeconfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create kubevirt client")
 	}
 
-	dataVolume := &cdi.DataVolume{}
+	dataVolume := &cdicorev1alpha1.DataVolume{}
 	if err := c.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, dataVolume); err != nil {
 		if kerrors.IsNotFound(err) {
 			return nil, nil
@@ -115,14 +115,14 @@ func (d *defaultDataVolumeManager) GetDataVolume(ctx context.Context, kubeconfig
 }
 
 // ListDataVolumes lists all the Data Volumes which exists in the passed namespace.
-func (d *defaultDataVolumeManager) ListDataVolumes(ctx context.Context, kubeconfig []byte, listOpts ...client.ListOption) (*cdi.DataVolumeList, error) {
+func (d *defaultDataVolumeManager) ListDataVolumes(ctx context.Context, kubeconfig []byte, listOpts ...client.ListOption) (*cdicorev1alpha1.DataVolumeList, error) {
 	c, namespace, err := d.client.GetClient(kubeconfig)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create kubevirt client")
 	}
 
-	dvList := cdi.DataVolumeList{}
+	dvList := cdicorev1alpha1.DataVolumeList{}
 	if err := c.List(ctx, &dvList, listOpts...); err != nil {
 		return nil, errors.Wrapf(err, "could not list DataVolumes in namespace %s", namespace)
 	}
@@ -142,7 +142,7 @@ func (d *defaultDataVolumeManager) DeleteDataVolume(ctx context.Context, kubecon
 		return errors.Wrap(err, "could not create kubevirt client")
 	}
 
-	dv := &cdi.DataVolume{
+	dv := &cdicorev1alpha1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
