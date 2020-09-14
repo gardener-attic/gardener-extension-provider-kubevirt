@@ -39,6 +39,10 @@ providerSpec:
   networks:
 {{ toYaml $machineClass.networks | indent 4 }}
 {{- end }}
+{{- if $machineClass.tags }}
+  tags:
+{{ toYaml $machineClass.tags | indent 4 }}
+{{- end }}
 secretRef:
   name: "{{ $machineClass.name }}"
   namespace: "{{ $.Release.Namespace }}"

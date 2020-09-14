@@ -11,8 +11,8 @@ machineClasses:
   - name: default/net-conf
     default: true
   tags:
-  - kubernetes.io/cluster/foo
-  - kubernetes.io/role/node
+  - kubernetes.io/cluster: foo
+    kubernetes.io/role: node
   secret:
     cloudConfig: abc
     kubeconfig: abc
