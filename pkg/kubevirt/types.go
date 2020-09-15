@@ -19,6 +19,9 @@ import (
 )
 
 const (
+	// Type is the type of resources managed by the KubeVirt controllers.
+	Type = "kubevirt"
+
 	// Name is the name of the KubeVirt provider controller.
 	Name = "provider-kubevirt"
 

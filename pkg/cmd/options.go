@@ -15,6 +15,8 @@
 package cmd
 
 import (
+	backupbucketcontroller "github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/backupbucket"
+	backupentrycontroller "github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/backupentry"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/controlplane"
 	healthcheckcontroller "github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/healthcheck"
 	infrastructurecontroller "github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/infrastructure"
@@ -22,6 +24,8 @@ import (
 	controlplanewebhook "github.com/gardener/gardener-extension-provider-kubevirt/pkg/webhook/controlplane"
 	controlplaneexposurewebhook "github.com/gardener/gardener-extension-provider-kubevirt/pkg/webhook/controlplaneexposure"
 
+	extensionsbackupbucketcontroller "github.com/gardener/gardener/extensions/pkg/controller/backupbucket"
+	extensionsbackupentrycontroller "github.com/gardener/gardener/extensions/pkg/controller/backupentry"
 	controllercmd "github.com/gardener/gardener/extensions/pkg/controller/cmd"
 	extensionscontrolplanecontroller "github.com/gardener/gardener/extensions/pkg/controller/controlplane"
 	extensionshealthcheckcontroller "github.com/gardener/gardener/extensions/pkg/controller/healthcheck"
@@ -38,6 +42,8 @@ func ControllerSwitchOptions() *controllercmd.SwitchOptions {
 		controllercmd.Switch(extensionsinfrastructurecontroller.ControllerName, infrastructurecontroller.AddToManager),
 		controllercmd.Switch(extensionsworkercontroller.ControllerName, workercontroller.AddToManager),
 		controllercmd.Switch(extensionshealthcheckcontroller.ControllerName, healthcheckcontroller.AddToManager),
+		controllercmd.Switch(extensionsbackupbucketcontroller.ControllerName, backupbucketcontroller.AddToManager),
+		controllercmd.Switch(extensionsbackupentrycontroller.ControllerName, backupentrycontroller.AddToManager),
 	)
 }
 
