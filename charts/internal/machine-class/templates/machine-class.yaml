@@ -39,6 +39,11 @@ providerSpec:
   networks:
 {{ toYaml $machineClass.networks | indent 4 }}
 {{- end }}
+  region: {{ $machineClass.region }}
+{{- if $machineClass.zones }}
+  zones:
+{{ toYaml $machineClass.zones | indent 4 }}
+{{- end }}
 {{- if $machineClass.tags }}
   tags:
 {{ toYaml $machineClass.tags | indent 4 }}
