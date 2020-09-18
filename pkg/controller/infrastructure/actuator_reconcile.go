@@ -27,6 +27,7 @@ import (
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	networkv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"github.com/pkg/errors"
+	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,6 +39,8 @@ import (
 const (
 	// clusterLabel is the label to put on a NetworkAttachmentDefinition object that identifies its cluster.
 	clusterLabel = "kubevirt.provider.extensions.gardener.cloud/cluster"
+	// nadCRDName is the NetworkAttachmentDefinition CRD name
+	nadCRDName = "network-attachment-definitions.k8s.cni.cncf.io"
 )
 
 func (a *actuator) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *extensionscontroller.Cluster) error {
@@ -98,18 +101,25 @@ func (a *actuator) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infr
 	}
 
 	// Delete old tenant networks
-	// List all tenant networks in namespace
-	nadList := &networkv1.NetworkAttachmentDefinitionList{}
-	if err := providerClient.List(ctx, nadList, client.InNamespace(namespace), client.MatchingLabels(nadLabels)); err != nil {
-		return errors.Wrap(err, "could not list NetworkAttachmentDefinitions")
+	// Check if the NetworkAttachmentDefinition CRD exists
+	var crdErr error
+	if crdErr = providerClient.Get(ctx, kutil.Key("", nadCRDName), &apiextensionsv1beta1.CustomResourceDefinition{}); crdErr != nil && !apierrors.IsNotFound(crdErr) {
+		return errors.Wrapf(err, "could not get CRD '%v'", nadCRDName)
 	}
-	for _, nad := range nadList.Items {
-		// If the network is no longer listed in the InfrastructureConfig, delete it
-		if !containsNetworkWithName(networks, kutil.ObjectName(&nad)) {
-			// Delete the NetworkAttachmentDefinition of the tenant network in the provider cluster
-			a.logger.Info("Deleting NetworkAttachmentDefinition", "name", nad.Name, "namespace", nad.Namespace)
-			if err := client.IgnoreNotFound(providerClient.Delete(ctx, &nad)); err != nil {
-				return errors.Wrapf(err, "could not delete NetworkAttachmentDefinition '%s'", kutil.ObjectName(&nad))
+	if crdErr == nil {
+		// List all tenant networks in namespace
+		nadList := &networkv1.NetworkAttachmentDefinitionList{}
+		if err := providerClient.List(ctx, nadList, client.InNamespace(namespace), client.MatchingLabels(nadLabels)); err != nil {
+			return errors.Wrap(err, "could not list NetworkAttachmentDefinitions")
+		}
+		for _, nad := range nadList.Items {
+			// If the network is no longer listed in the InfrastructureConfig, delete it
+			if !containsNetworkWithName(networks, kutil.ObjectName(&nad)) {
+				// Delete the NetworkAttachmentDefinition of the tenant network in the provider cluster
+				a.logger.Info("Deleting NetworkAttachmentDefinition", "name", nad.Name, "namespace", nad.Namespace)
+				if err := client.IgnoreNotFound(providerClient.Delete(ctx, &nad)); err != nil {
+					return errors.Wrapf(err, "could not delete NetworkAttachmentDefinition '%s'", kutil.ObjectName(&nad))
+				}
 			}
 		}
 	}
