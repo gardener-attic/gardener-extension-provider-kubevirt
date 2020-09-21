@@ -17,8 +17,10 @@ package s3
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -28,17 +30,23 @@ const (
 	AccessKeyID = "accessKeyID"
 	// SecretAccessKey is a constant for the key in a cloud provider secret and backup secret that holds the s3 secret access key.
 	SecretAccessKey = "secretAccessKey"
-	// Endpoint is a constant for the key in a backup secret that holds an s3 endpoint
+	// Endpoint is a constant for the key in a backup secret that holds an s3 endpoint.
 	Endpoint = "endpoint"
-	// Region is a constant for the key in a backup secret that points to a region
+	// NoVerifySSL is a constant for the key in a backup secret that specifies whether the client verifies the server's certificate chain and host name.
+	NoVerifySSL = "noVerifySSL"
+	// EnableEncryption is a constant for the key in a backup secret that specifies whether server-side encryption should be enabled or not.
+	EnableEncryption = "enableEncryption"
+	// Region is a constant for the key in a backup secret that points to a region.
 	Region = "region"
 )
 
 // Credentials stores AWS credentials.
 type Credentials struct {
-	AccessKeyID     []byte
-	SecretAccessKey []byte
-	Endpoint        []byte
+	AccessKeyID      string
+	SecretAccessKey  string
+	Endpoint         string
+	NoVerifySSL      bool
+	EnableEncryption bool
 }
 
 // GetCredentialsFromSecretRef reads the secret given by the the secret reference and returns the read Credentials
@@ -69,11 +77,21 @@ func ReadCredentialsSecret(secret *corev1.Secret) (*Credentials, error) {
 	if !ok {
 		return nil, fmt.Errorf("missing %q field in secret", Endpoint)
 	}
+	noVerifySSL, err := getBool(secret, NoVerifySSL)
+	if err != nil {
+		return nil, err
+	}
+	enableEncryption, err := getBool(secret, EnableEncryption)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Credentials{
-		AccessKeyID:     accessKeyID,
-		SecretAccessKey: secretAccessKey,
-		Endpoint:        endpoint,
+		AccessKeyID:      string(accessKeyID),
+		SecretAccessKey:  string(secretAccessKey),
+		Endpoint:         string(endpoint),
+		NoVerifySSL:      noVerifySSL,
+		EnableEncryption: enableEncryption,
 	}, nil
 }
 
@@ -84,5 +102,17 @@ func NewClientFromSecretRef(ctx context.Context, client client.Client, secretRef
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(string(credentials.AccessKeyID), string(credentials.SecretAccessKey), string(credentials.Endpoint), region)
+	return NewClient(credentials.AccessKeyID, credentials.SecretAccessKey, credentials.Endpoint, region, credentials.NoVerifySSL, credentials.EnableEncryption)
+}
+
+func getBool(secret *corev1.Secret, key string) (bool, error) {
+	result := false
+	value := secret.Data[key]
+	if len(value) > 0 {
+		var err error
+		if result, err = strconv.ParseBool(string(value)); err != nil {
+			return false, errors.Wrapf(err, "could not parse %q field in secret to bool", key)
+		}
+	}
+	return result, nil
 }

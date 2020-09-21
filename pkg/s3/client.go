@@ -16,6 +16,8 @@ package s3
 
 import (
 	"context"
+	"crypto/tls"
+	"net/http"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -24,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/pkg/errors"
+	"k8s.io/utils/pointer"
 )
 
 const (
@@ -32,26 +35,36 @@ const (
 )
 
 type Client struct {
-	S3 *s3.S3
+	S3               *s3.S3
+	enableEncryption bool
 }
 
-func NewClient(accessKey, secret, endpoint, region string) (*Client, error) {
-	noSSL := false
+func NewClient(accessKey, secret, endpoint, region string, noVerifySSL, enableEncryption bool) (*Client, error) {
+	disableSSL := false
 	pair := strings.Split(endpoint, "://")
 	if len(pair) > 1 {
-		noSSL = pair[0] == "http"
+		disableSSL = pair[0] == "http"
 	}
 
-	pathStyle := true
-	token := ""
-	creds := credentials.NewStaticCredentials(accessKey, secret, token)
+	client := http.DefaultClient
+	if noVerifySSL {
+		client = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		}
+	}
+
 	sess, err := session.NewSessionWithOptions(session.Options{
 		Config: aws.Config{
-			Region:           &region,
-			Credentials:      creds,
+			Credentials:      credentials.NewStaticCredentials(accessKey, secret, ""),
 			Endpoint:         &endpoint,
-			DisableSSL:       &noSSL,
-			S3ForcePathStyle: &pathStyle,
+			Region:           &region,
+			DisableSSL:       &disableSSL,
+			HTTPClient:       client,
+			S3ForcePathStyle: pointer.BoolPtr(true),
 		},
 	})
 	if err != nil {
@@ -59,24 +72,47 @@ func NewClient(accessKey, secret, endpoint, region string) (*Client, error) {
 	}
 
 	return &Client{
-		S3: s3.New(sess),
+		S3:               s3.New(sess),
+		enableEncryption: enableEncryption,
 	}, nil
 }
 
 // CreateBucketIfNotExists creates the s3 bucket with name <bucket> in <region>.
 func (c *Client) CreateBucketIfNotExists(ctx context.Context, bucket, region string) error {
-	createBucketInput := &s3.CreateBucketInput{
-		Bucket: aws.String(bucket),
-		ACL:    aws.String(s3.BucketCannedACLPrivate),
-		CreateBucketConfiguration: &s3.CreateBucketConfiguration{
+	var createBucketConfiguration *s3.CreateBucketConfiguration
+	if region != "us-east-1" {
+		createBucketConfiguration = &s3.CreateBucketConfiguration{
 			LocationConstraint: aws.String(region),
-		},
+		}
+	}
+	createBucketInput := &s3.CreateBucketInput{
+		Bucket:                    aws.String(bucket),
+		ACL:                       aws.String(s3.BucketCannedACLPrivate),
+		CreateBucketConfiguration: createBucketConfiguration,
 	}
 	if _, err := c.S3.CreateBucketWithContext(ctx, createBucketInput); err != nil {
 		if aerr, ok := err.(awserr.Error); !ok {
 			return errors.Wrap(err, "could not create bucket")
 		} else if aerr.Code() != s3.ErrCodeBucketAlreadyExists && aerr.Code() != s3.ErrCodeBucketAlreadyOwnedByYou {
 			return errors.Wrap(err, "could not create bucket")
+		}
+	}
+
+	if c.enableEncryption {
+		// Enable default server side encryption using AES256 algorithm. Key will be managed by S3.
+		if _, err := c.S3.PutBucketEncryptionWithContext(ctx, &s3.PutBucketEncryptionInput{
+			Bucket: aws.String(bucket),
+			ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{
+				Rules: []*s3.ServerSideEncryptionRule{
+					{
+						ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
+							SSEAlgorithm: aws.String("AES256"),
+						},
+					},
+				},
+			},
+		}); err != nil {
+			return errors.Wrap(err, "could not put bucket encryption")
 		}
 	}
 
