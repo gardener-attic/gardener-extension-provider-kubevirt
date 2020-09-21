@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kubevirt
+package s3
 
-// Type is the type of resources managed by the KubeVirt actuator.
-const Type = "kubevirt"
+// Type is the type of resources managed by the S3 controllers.
+const Type = "S3"
