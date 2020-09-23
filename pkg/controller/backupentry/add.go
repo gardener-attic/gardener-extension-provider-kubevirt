@@ -15,7 +15,7 @@
 package backupentry
 
 import (
-	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/s3"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/ocs"
 
 	"github.com/gardener/gardener/extensions/pkg/controller/backupentry"
 	"github.com/gardener/gardener/extensions/pkg/controller/backupentry/genericactuator"
@@ -28,7 +28,7 @@ var (
 	// DefaultAddOptions are the default AddOptions for AddToManager.
 	DefaultAddOptions = AddOptions{}
 
-	logger = log.Log.WithName("s3-backupentry-actuator")
+	logger = log.Log.WithName("ocs-backupentry-actuator")
 )
 
 // AddOptions are options to apply when adding the s3 backupentry controller to the manager.
@@ -46,7 +46,7 @@ func AddToManagerWithOptions(mgr manager.Manager, opts AddOptions) error {
 		Actuator:          genericactuator.NewActuator(newActuator(logger), logger),
 		ControllerOptions: opts.Controller,
 		Predicates:        backupentry.DefaultPredicates(opts.IgnoreOperationAnnotation),
-		Type:              s3.Type,
+		Type:              ocs.Type,
 	})
 }
 

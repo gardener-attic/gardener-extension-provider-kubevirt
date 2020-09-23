@@ -15,7 +15,7 @@
 package backupbucket
 
 import (
-	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/s3"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/ocs"
 
 	"github.com/gardener/gardener/extensions/pkg/controller/backupbucket"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -27,7 +27,7 @@ var (
 	// DefaultAddOptions are the default AddOptions for AddToManager.
 	DefaultAddOptions = AddOptions{}
 
-	logger = log.Log.WithName("s3-backupbucket-actuator")
+	logger = log.Log.WithName("ocs-backupbucket-actuator")
 )
 
 // AddOptions are options to apply when adding the s3 backupbucket controller to the manager.
@@ -45,7 +45,7 @@ func AddToManagerWithOptions(mgr manager.Manager, opts AddOptions) error {
 		Actuator:          newActuator(logger),
 		ControllerOptions: opts.Controller,
 		Predicates:        backupbucket.DefaultPredicates(opts.IgnoreOperationAnnotation),
-		Type:              s3.Type,
+		Type:              ocs.Type,
 	})
 }
 

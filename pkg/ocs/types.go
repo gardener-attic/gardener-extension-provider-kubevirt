@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package s3
+package ocs
 
 // Type is the type of resources managed by the S3 controllers.
-const Type = "S3"
+const Type = "OCS"
