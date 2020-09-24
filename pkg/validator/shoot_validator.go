@@ -48,7 +48,7 @@ var (
 )
 
 func (v *Shoot) validateShootCreation(ctx context.Context, shoot *core.Shoot) error {
-	valContext, err := newValidationContext(ctx, v.client, shoot)
+	valContext, err := v.newValidationContext(ctx, v.client, shoot)
 	if err != nil {
 		return err
 	}
@@ -62,12 +62,12 @@ func (v *Shoot) validateShootCreation(ctx context.Context, shoot *core.Shoot) er
 }
 
 func (v *Shoot) validateShootUpdate(ctx context.Context, oldShoot, shoot *core.Shoot) error {
-	oldValContext, err := newValidationContext(ctx, v.client, oldShoot)
+	oldValContext, err := v.newValidationContext(ctx, v.client, oldShoot)
 	if err != nil {
 		return err
 	}
 
-	valContext, err := newValidationContext(ctx, v.client, shoot)
+	valContext, err := v.newValidationContext(ctx, v.client, shoot)
 	if err != nil {
 		return err
 	}
@@ -102,7 +102,7 @@ func (v *Shoot) validateShoot(context *validationContext) field.ErrorList {
 	return allErrs
 }
 
-func newValidationContext(ctx context.Context, c client.Client, shoot *core.Shoot) (*validationContext, error) {
+func (v *Shoot) newValidationContext(ctx context.Context, c client.Client, shoot *core.Shoot) (*validationContext, error) {
 	infraConfig := &kubevirt.InfrastructureConfig{}
 	if shoot.Spec.Provider.InfrastructureConfig != nil {
 		var err error
@@ -131,6 +131,13 @@ func newValidationContext(ctx context.Context, c client.Client, shoot *core.Shoo
 	cloudProfileConfig, err := helper.DecodeCloudProfileConfig(cloudProfile.Spec.ProviderConfig, providerConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("an error occurred while reading the cloud profile %q: %v", cloudProfile.Name, err)
+	}
+
+	for _, worker := range shoot.Spec.Provider.Workers {
+		_, err := helper.DecodeWorkerConfig(v.decoder, worker.ProviderConfig)
+		if err != nil {
+			return nil, fmt.Errorf("an error occoured while decoding workerConfig: %v", err)
+		}
 	}
 
 	return &validationContext{
