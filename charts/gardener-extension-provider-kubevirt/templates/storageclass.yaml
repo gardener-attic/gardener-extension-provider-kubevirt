@@ -6,6 +6,10 @@ metadata:
   name: {{ .Values.config.etcd.storage.className }}
   labels:
 {{ include "labels" . | indent 4 }}
-provisioner: kubernetes.io/no-provisioner
+provisioner: {{ .Values.config.etcd.storage.provisioner }}
+{{- if .Values.config.etcd.storage.parameters }}
+parameters:
+{{ toYaml .Values.config.etcd.storage.parameters | indent 2 }}
+{{- end }}
 {{- end }}
 {{- end }}

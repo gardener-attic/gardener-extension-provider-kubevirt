@@ -52,6 +52,7 @@ config:
   etcd:
     storage:
       capacity: 25Gi
+      provisioner: kubernetes.io/no-provisioner
 
 gardener:
   seed:
