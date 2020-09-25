@@ -28,8 +28,6 @@ type CloudProfileConfig struct {
 	// MachineImages is the list of machine images that are understood by the controller. It maps
 	// logical names and versions to provider-specific identifiers.
 	MachineImages []MachineImages `json:"machineImages"`
-	// MachineDeploymentConfigs is the list of machine type deployment config.
-	MachineDeploymentConfig []MachineDeploymentConfig `json:"machineDeploymentConfig"`
 }
 
 // MachineImages is a mapping from logical names and versions to provider-specific identifiers.
@@ -46,10 +44,4 @@ type MachineImageVersion struct {
 	Version string `json:"version"`
 	// SourceURL is the url of the image
 	SourceURL string `json:"sourceURL"`
-}
-
-// MachineDeploymentConfig defines deployment config for VMs for specific machine type
-type MachineDeploymentConfig struct {
-	// MachineTypeName is the name of the machine type, used as a reference to MachineType object
-	MachineTypeName string `json:"machineTypeName"`
 }

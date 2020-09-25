@@ -139,6 +139,17 @@ func GetControlPlaneConfig(cp *extensionsv1alpha1.ControlPlane) (*api.ControlPla
 	return config, nil
 }
 
+// GetWorkerConfig extracts the WorkerConfig from the ProviderConfig section of the given Worker.
+func GetWorkerConfig(p *extensionsv1alpha1.WorkerPool) (*api.WorkerConfig, error) {
+	config := &api.WorkerConfig{}
+	if p.ProviderConfig != nil && p.ProviderConfig.Raw != nil {
+		if _, _, err := decoder.Decode(p.ProviderConfig.Raw, nil, config); err != nil {
+			return nil, errors.Wrapf(err, "could not decode providerConfig of worker pool '%s'", p.Name)
+		}
+	}
+	return config, nil
+}
+
 // GetInfrastructureStatus extracts the InfrastructureStatus from the InfrastructureProviderStatus section of the given Worker.
 func GetInfrastructureStatus(w *extensionsv1alpha1.Worker) (*api.InfrastructureStatus, error) {
 	status := &api.InfrastructureStatus{}

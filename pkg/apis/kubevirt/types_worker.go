@@ -15,8 +15,28 @@
 package kubevirt
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// WorkerConfig contains configuration for VMs
+type WorkerConfig struct {
+	metav1.TypeMeta
+
+	// Set DNS policy for the VM (the same options as for the pod)
+	// Defaults to "ClusterFirst".
+	// Valid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'.
+	// DNS parameters given in DNSConfig will be merged with the policy selected with DNSPolicy.
+	// To have DNS options set along with hostNetwork, you have to specify DNS policy
+	// explicitly to 'ClusterFirstWithHostNet'.
+	DNSPolicy corev1.DNSPolicy
+	// Specifies the DNS parameters of a VM.
+	// Parameters specified here will be merged to the generated DNS
+	// configuration based on DNSPolicy.
+	DNSConfig *corev1.PodDNSConfig
+}
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 

@@ -48,6 +48,13 @@ providerSpec:
   tags:
 {{ toYaml $machineClass.tags | indent 4 }}
 {{- end }}
+{{- if $machineClass.dnsPolicy }}
+  dnsPolicy: {{ $machineClass.dnsPolicy }}
+{{- end }}
+{{- if $machineClass.dnsConfig }}
+  dnsConfig:
+{{ toYaml $machineClass.dnsConfig | indent 4 }}
+{{- end }}
 secretRef:
   name: "{{ $machineClass.name }}"
   namespace: "{{ $.Release.Namespace }}"

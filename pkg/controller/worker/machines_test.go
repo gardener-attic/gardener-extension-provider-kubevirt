@@ -118,6 +118,7 @@ var _ = Describe("Machines", func() {
 			sshPublicKey := []byte("ssh-rsa AAAAB3...")
 			machineConfiguration := &machinev1alpha1.MachineConfiguration{}
 			networkName := "default/net-conf"
+			dnsNameserver := "8.8.8.8"
 
 			images := []apiv1alpha1.MachineImages{
 				{
@@ -169,6 +170,18 @@ var _ = Describe("Machines", func() {
 							},
 							UserData: userData,
 							Zones:    []string{"local-1"},
+							ProviderConfig: &runtime.RawExtension{
+								Raw: encode(&apiv1alpha1.WorkerConfig{
+									TypeMeta: metav1.TypeMeta{
+										APIVersion: "kubevirt.provider.extensions.gardener.cloud/v1alpha1",
+										Kind:       "WorkerConfig",
+									},
+									DNSPolicy: corev1.DNSDefault,
+									DNSConfig: &corev1.PodDNSConfig{
+										Nameservers: []string{dnsNameserver},
+									},
+								}),
+							},
 						},
 						{
 							Name:           namePool2,
@@ -233,6 +246,11 @@ var _ = Describe("Machines", func() {
 						"cloudConfig": "user-data",
 						"kubeconfig":  kubeconfig,
 					},
+					"tags": map[string]string{
+						"mcm.gardener.cloud/cluster":      namespace,
+						"mcm.gardener.cloud/role":         "node",
+						"mcm.gardener.cloud/machineclass": machineClassName1,
+					},
 				}
 
 				machineClass1 := generateMachineClass(
@@ -246,6 +264,10 @@ var _ = Describe("Machines", func() {
 						"mcm.gardener.cloud/cluster":      namespace,
 						"mcm.gardener.cloud/role":         "node",
 						"mcm.gardener.cloud/machineclass": machineClassName1,
+					},
+					corev1.DNSDefault,
+					&corev1.PodDNSConfig{
+						Nameservers: []string{dnsNameserver},
 					},
 				)
 
@@ -261,6 +283,8 @@ var _ = Describe("Machines", func() {
 						"mcm.gardener.cloud/role":         "node",
 						"mcm.gardener.cloud/machineclass": machineClassName2,
 					},
+					"",
+					nil,
 				)
 
 				chartApplier.
@@ -457,7 +481,8 @@ func generateKubeVirtDataVolumes(providerClient *mockclient.MockClient) {
 		AnyTimes()
 }
 
-func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, cpu, memory string, zones []string, tags map[string]string) map[string]interface{} {
+func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, cpu, memory string, zones []string,
+	tags map[string]string, dnsPolicy corev1.DNSPolicy, dnsConfig *corev1.PodDNSConfig) map[string]interface{} {
 	out := make(map[string]interface{})
 
 	for k, v := range classTemplate {
@@ -470,6 +495,8 @@ func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, c
 	out["memory"] = resource.MustParse(memory)
 	out["zones"] = zones
 	out["tags"] = tags
+	out["dnsPolicy"] = dnsPolicy
+	out["dnsConfig"] = dnsConfig
 
 	return out
 }
@@ -481,14 +508,6 @@ func createCluster(cloudProfileName, shootVersion string, images []apiv1alpha1.M
 			Kind:       "CloudProfileConfig",
 		},
 		MachineImages: images,
-		MachineDeploymentConfig: []apiv1alpha1.MachineDeploymentConfig{
-			{
-				MachineTypeName: "local-1",
-			},
-			{
-				MachineTypeName: "local-2",
-			},
-		},
 	}
 	cloudProfileConfigJSON, _ := json.Marshal(cloudProfileConfig)
 

@@ -16,6 +16,8 @@ Resource Types:
 </li><li>
 <a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.InfrastructureConfig">InfrastructureConfig</a>
 </li><li>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.WorkerConfig">WorkerConfig</a>
+</li><li>
 <a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.WorkerStatus">WorkerStatus</a>
 </li></ul>
 <h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.CloudProfileConfig">CloudProfileConfig
@@ -61,19 +63,6 @@ string
 <td>
 <p>MachineImages is the list of machine images that are understood by the controller. It maps
 logical names and versions to provider-specific identifiers.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>machineDeploymentConfig</code></br>
-<em>
-<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.MachineDeploymentConfig">
-[]MachineDeploymentConfig
-</a>
-</em>
-</td>
-<td>
-<p>MachineDeploymentConfigs is the list of machine type deployment config.</p>
 </td>
 </tr>
 </tbody>
@@ -165,6 +154,71 @@ NetworksConfig
 </td>
 <td>
 <p>Networks is the configuration of the infrastructure networks.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.WorkerConfig">WorkerConfig
+</h3>
+<p>
+<p>WorkerConfig contains configuration for VMs</p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>apiVersion</code></br>
+string</td>
+<td>
+<code>
+kubevirt.provider.extensions.gardener.cloud/v1alpha1
+</code>
+</td>
+</tr>
+<tr>
+<td>
+<code>kind</code></br>
+string
+</td>
+<td><code>WorkerConfig</code></td>
+</tr>
+<tr>
+<td>
+<code>dnsPolicy</code></br>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.15/#dnspolicy-v1-core">
+Kubernetes core/v1.DNSPolicy
+</a>
+</em>
+</td>
+<td>
+<p>Set DNS policy for the VM (the same as for the pod)
+Defaults to &ldquo;ClusterFirst&rdquo;.
+Valid values are &lsquo;ClusterFirstWithHostNet&rsquo;, &lsquo;ClusterFirst&rsquo;, &lsquo;Default&rsquo; or &lsquo;None&rsquo;.
+DNS parameters given in DNSConfig will be merged with the policy selected with DNSPolicy.
+To have DNS options set along with hostNetwork, you have to specify DNS policy
+explicitly to &lsquo;ClusterFirstWithHostNet&rsquo;.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>dnsConfig</code></br>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.15/#poddnsconfig-v1-core">
+Kubernetes core/v1.PodDNSConfig
+</a>
+</em>
+</td>
+<td>
+<p>Specifies the DNS parameters of a VM.
+Parameters specified here will be merged to the generated DNS
+configuration based on DNSPolicy.</p>
 </td>
 </tr>
 </tbody>
@@ -274,36 +328,6 @@ map[string]bool
 </td>
 <td>
 <p>Networks is the status of the infrastructure networks.</p>
-</td>
-</tr>
-</tbody>
-</table>
-<h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.MachineDeploymentConfig">MachineDeploymentConfig
-</h3>
-<p>
-(<em>Appears on:</em>
-<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.CloudProfileConfig">CloudProfileConfig</a>)
-</p>
-<p>
-<p>MachineDeploymentConfig defines deployment config for VMs for specific machine type</p>
-</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<code>machineTypeName</code></br>
-<em>
-string
-</em>
-</td>
-<td>
-<p>MachineTypeName is the name of the machine type, used as a reference to MachineType object</p>
 </td>
 </tr>
 </tbody>
