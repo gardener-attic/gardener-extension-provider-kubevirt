@@ -15,8 +15,29 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// WorkerConfig contains configuration for VMs
+type WorkerConfig struct {
+	metav1.TypeMeta `json:",inline"`
+
+	// Set DNS policy for the VM (the same as for the pod)
+	// Defaults to "ClusterFirst".
+	// Valid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'.
+	// DNS parameters given in DNSConfig will be merged with the policy selected with DNSPolicy.
+	// To have DNS options set along with hostNetwork, you have to specify DNS policy
+	// explicitly to 'ClusterFirstWithHostNet'.
+	DNSPolicy corev1.DNSPolicy `json:"dnsPolicy,omitempty"`
+	// Specifies the DNS parameters of a VM.
+	// Parameters specified here will be merged to the generated DNS
+	// configuration based on DNSPolicy.
+	DNSConfig *corev1.PodDNSConfig `json:"dnsConfig,omitempty"`
+}
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

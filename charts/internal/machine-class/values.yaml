@@ -16,6 +16,10 @@ machineClasses:
   tags:
   - kubernetes.io/cluster: foo
     kubernetes.io/role: node
+  dnsPolicy: ClusterFirst
+  dnsConfig:
+    nameservers:
+    - 8.8.8.8
   secret:
     cloudConfig: abc
     kubeconfig: abc

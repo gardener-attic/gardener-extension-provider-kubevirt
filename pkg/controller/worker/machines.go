@@ -139,6 +139,11 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 		zoneIdx := int32(0)
 		zoneLen := int32(1)
 
+		workerConfig, err := helper.GetWorkerConfig(&pool)
+		if err != nil {
+			return err
+		}
+
 		machineType, err := w.getMachineType(pool.MachineType)
 		if err != nil {
 			return err
@@ -190,6 +195,8 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 				"cloudConfig": string(pool.UserData),
 				"kubeconfig":  string(kubeconfig),
 			},
+			"dnsPolicy": workerConfig.DNSPolicy,
+			"dnsConfig": workerConfig.DNSConfig,
 		})
 
 		machineDeployments = append(machineDeployments, worker.MachineDeployment{
@@ -221,13 +228,4 @@ func (w *workerDelegate) getMachineType(name string) (*corev1beta1.MachineType, 
 		}
 	}
 	return nil, fmt.Errorf("machine type %s not found in cloud profile spec", name)
-}
-
-func (w *workerDelegate) getMachineDeploymentConfig(machineTypeName string) (*apiskubevirt.MachineDeploymentConfig, error) {
-	for _, mdc := range w.cloudProfileConfig.MachineDeploymentConfig {
-		if mdc.MachineTypeName == machineTypeName {
-			return &mdc, nil
-		}
-	}
-	return nil, fmt.Errorf("machine deployment config not found for machine type %s, in cloud profile config spec", machineTypeName)
 }
