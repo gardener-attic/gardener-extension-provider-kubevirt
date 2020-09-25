@@ -162,7 +162,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 		deploymentName := fmt.Sprintf("%s-%s-z", w.worker.Namespace, pool.Name)
 		className := fmt.Sprintf("%s-%s", deploymentName, workerPoolHash)
 
-		var networks []interface{}
+		var networks []map[string]interface{}
 		for _, networkStatus := range infrastructureStatus.Networks {
 			networks = append(networks, map[string]interface{}{
 				"name":    networkStatus.Name,
@@ -179,6 +179,8 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			"memory":           machineType.Memory,
 			"sshKeys":          []string{string(w.worker.Spec.SSHPublicKey)},
 			"networks":         networks,
+			"region":           w.worker.Spec.Region,
+			"zones":            pool.Zones,
 			"tags": map[string]string{
 				"mcm.gardener.cloud/cluster":      w.worker.Namespace,
 				"mcm.gardener.cloud/role":         "node",

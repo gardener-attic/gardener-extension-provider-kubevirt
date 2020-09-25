@@ -140,7 +140,7 @@ var _ = Describe("Machines", func() {
 						Name:      "kubevirt-provider-credentials",
 						Namespace: namespace,
 					},
-					Region: "",
+					Region: "local",
 					InfrastructureProviderStatus: &runtime.RawExtension{
 						Raw: encode(&apiv1alpha1.InfrastructureStatus{
 							TypeMeta: metav1.TypeMeta{
@@ -168,7 +168,7 @@ var _ = Describe("Machines", func() {
 								Version: machineImageVersion,
 							},
 							UserData: userData,
-							Zones:    []string{},
+							Zones:    []string{"local-1"},
 						},
 						{
 							Name:           namePool2,
@@ -182,7 +182,7 @@ var _ = Describe("Machines", func() {
 								Version: machineImageVersion,
 							},
 							UserData: userData,
-							Zones:    []string{},
+							Zones:    []string{"local-2"},
 						},
 					},
 					SSHPublicKey: sshPublicKey,
@@ -216,44 +216,51 @@ var _ = Describe("Machines", func() {
 				machineClassName1 := fmt.Sprintf("%s-%s", machineDeploymentName1, workerPoolHash1)
 				machineClassName2 := fmt.Sprintf("%s-%s", machineDeploymentName2, workerPoolHash2)
 
-				machineClassTemplate1 := map[string]interface{}{
+				machineClassTemplate := map[string]interface{}{
 					"storageClassName": "standard",
 					"sourceURL":        ubuntuSourceURL,
+					"sshKeys": []string{
+						string(sshPublicKey),
+					},
+					"networks": []map[string]interface{}{
+						{
+							"name":    networkName,
+							"default": true,
+						},
+					},
+					"region": "local",
 					"secret": map[string]interface{}{
 						"cloudConfig": "user-data",
 						"kubeconfig":  kubeconfig,
 					},
-					"tags": map[string]string{
-						"mcm.gardener.cloud/cluster":      namespace,
-						"mcm.gardener.cloud/role":         "node",
-						"mcm.gardener.cloud/machineclass": machineClassName1,
-					},
 				}
 
 				machineClass1 := generateMachineClass(
-					machineClassTemplate1,
+					machineClassTemplate,
 					machineClassName1,
 					"8Gi",
 					"2",
 					"4096Mi",
-					sshPublicKey,
-					networkName,
+					[]string{"local-1"},
+					map[string]string{
+						"mcm.gardener.cloud/cluster":      namespace,
+						"mcm.gardener.cloud/role":         "node",
+						"mcm.gardener.cloud/machineclass": machineClassName1,
+					},
 				)
 
-				machineClassTemplate1["tags"] = map[string]string{
-					"mcm.gardener.cloud/cluster":      namespace,
-					"mcm.gardener.cloud/role":         "node",
-					"mcm.gardener.cloud/machineclass": machineClassName2,
-				}
-
 				machineClass2 := generateMachineClass(
-					machineClassTemplate1,
+					machineClassTemplate,
 					machineClassName2,
 					"8Gi",
 					"300m",
 					"8192Mi",
-					sshPublicKey,
-					networkName,
+					[]string{"local-2"},
+					map[string]string{
+						"mcm.gardener.cloud/cluster":      namespace,
+						"mcm.gardener.cloud/role":         "node",
+						"mcm.gardener.cloud/machineclass": machineClassName2,
+					},
 				)
 
 				chartApplier.
@@ -450,8 +457,7 @@ func generateKubeVirtDataVolumes(providerClient *mockclient.MockClient) {
 		AnyTimes()
 }
 
-func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, cpu, memory string, sshPublicKey []byte,
-	networkName string) map[string]interface{} {
+func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, cpu, memory string, zones []string, tags map[string]string) map[string]interface{} {
 	out := make(map[string]interface{})
 
 	for k, v := range classTemplate {
@@ -462,13 +468,8 @@ func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, c
 	out["pvcSize"] = resource.MustParse(pvcSize)
 	out["cpus"] = resource.MustParse(cpu)
 	out["memory"] = resource.MustParse(memory)
-	out["sshKeys"] = []string{string(sshPublicKey)}
-	out["networks"] = []interface{}{
-		map[string]interface{}{
-			"name":    networkName,
-			"default": true,
-		},
-	}
+	out["zones"] = zones
+	out["tags"] = tags
 
 	return out
 }
@@ -500,7 +501,19 @@ func createCluster(cloudProfileName, shootVersion string, images []apiv1alpha1.M
 				ProviderConfig: &runtime.RawExtension{
 					Raw: cloudProfileConfigJSON,
 				},
-				Regions: []gardencorev1beta1.Region{},
+				Regions: []gardencorev1beta1.Region{
+					{
+						Name: "local",
+						Zones: []gardencorev1beta1.AvailabilityZone{
+							{
+								Name: "local-1",
+							},
+							{
+								Name: "local-2",
+							},
+						},
+					},
+				},
 				MachineTypes: []gardencorev1beta1.MachineType{
 					{
 						Name:   "local-1",
