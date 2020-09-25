@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package s3
+package ocs
 
 import (
 	"context"
@@ -26,27 +26,27 @@ import (
 )
 
 const (
-	// AccessKeyID is a constant for the key in a cloud provider secret and backup secret that holds the s3 access key id.
+	// AccessKeyID is a constant for the key in a backup secret that holds the OCS S3 access key id.
 	AccessKeyID = "accessKeyID"
-	// SecretAccessKey is a constant for the key in a cloud provider secret and backup secret that holds the s3 secret access key.
+	// SecretAccessKey is a constant for the key in a backup secret that holds the OCS S3 secret access key.
 	SecretAccessKey = "secretAccessKey"
-	// Endpoint is a constant for the key in a backup secret that holds an s3 endpoint.
+	// Endpoint is a constant for the key in a backup secret that holds an OCS S3 endpoint.
 	Endpoint = "endpoint"
-	// NoVerifySSL is a constant for the key in a backup secret that specifies whether the client verifies the server's certificate chain and host name.
-	NoVerifySSL = "noVerifySSL"
-	// EnableEncryption is a constant for the key in a backup secret that specifies whether server-side encryption should be enabled or not.
-	EnableEncryption = "enableEncryption"
+	// DisableSSL is a constant for the key in a backup secret that specifies whether SSL should be disabled or not.
+	DisableSSL = "disableSSL"
+	// InsecureSkipVerify is a constant for the key in a backup secret that specifies whether the client verifies the server's certificate chain and host name.
+	InsecureSkipVerify = "insecureSkipVerify"
 	// Region is a constant for the key in a backup secret that points to a region.
 	Region = "region"
 )
 
 // Credentials stores AWS credentials.
 type Credentials struct {
-	AccessKeyID      string
-	SecretAccessKey  string
-	Endpoint         string
-	NoVerifySSL      bool
-	EnableEncryption bool
+	AccessKeyID        string
+	SecretAccessKey    string
+	Endpoint           string
+	DisableSSL         bool
+	InsecureSkipVerify bool
 }
 
 // GetCredentialsFromSecretRef reads the secret given by the the secret reference and returns the read Credentials
@@ -77,21 +77,21 @@ func ReadCredentialsSecret(secret *corev1.Secret) (*Credentials, error) {
 	if !ok {
 		return nil, fmt.Errorf("missing %q field in secret", Endpoint)
 	}
-	noVerifySSL, err := getBool(secret, NoVerifySSL)
+	disableSSL, err := getBool(secret, DisableSSL)
 	if err != nil {
 		return nil, err
 	}
-	enableEncryption, err := getBool(secret, EnableEncryption)
+	insecureSkipVerify, err := getBool(secret, InsecureSkipVerify)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Credentials{
-		AccessKeyID:      string(accessKeyID),
-		SecretAccessKey:  string(secretAccessKey),
-		Endpoint:         string(endpoint),
-		NoVerifySSL:      noVerifySSL,
-		EnableEncryption: enableEncryption,
+		AccessKeyID:        string(accessKeyID),
+		SecretAccessKey:    string(secretAccessKey),
+		Endpoint:           string(endpoint),
+		DisableSSL:         disableSSL,
+		InsecureSkipVerify: insecureSkipVerify,
 	}, nil
 }
 
@@ -102,7 +102,7 @@ func NewClientFromSecretRef(ctx context.Context, client client.Client, secretRef
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(credentials.AccessKeyID, credentials.SecretAccessKey, credentials.Endpoint, region, credentials.NoVerifySSL, credentials.EnableEncryption)
+	return NewClient(credentials.AccessKeyID, credentials.SecretAccessKey, credentials.Endpoint, region, credentials.DisableSSL, credentials.InsecureSkipVerify)
 }
 
 func getBool(secret *corev1.Secret, key string) (bool, error) {

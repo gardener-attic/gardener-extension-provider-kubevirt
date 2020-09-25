@@ -18,7 +18,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/s3"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/ocs"
 
 	"github.com/gardener/gardener/extensions/pkg/controller/backupentry/genericactuator"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
@@ -43,12 +43,12 @@ func (a *actuator) InjectClient(client client.Client) error {
 }
 
 func (a *actuator) GetETCDSecretData(_ context.Context, be *extensionsv1alpha1.BackupEntry, backupSecretData map[string][]byte) (map[string][]byte, error) {
-	backupSecretData[s3.Region] = []byte(be.Spec.Region)
+	backupSecretData[ocs.Region] = []byte(be.Spec.Region)
 	return backupSecretData, nil
 }
 
 func (a *actuator) Delete(ctx context.Context, be *extensionsv1alpha1.BackupEntry) error {
-	s3Client, err := s3.NewClientFromSecretRef(ctx, a.client, be.Spec.SecretRef, be.Spec.Region)
+	s3Client, err := ocs.NewClientFromSecretRef(ctx, a.client, be.Spec.SecretRef, be.Spec.Region)
 	if err != nil {
 		return err
 	}

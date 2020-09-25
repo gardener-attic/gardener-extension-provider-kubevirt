@@ -17,7 +17,7 @@ package backupbucket
 import (
 	"context"
 
-	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/s3"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/ocs"
 
 	"github.com/gardener/gardener/extensions/pkg/controller/backupbucket"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
@@ -43,7 +43,7 @@ func (a *actuator) InjectClient(client client.Client) error {
 }
 
 func (a *actuator) Reconcile(ctx context.Context, bb *extensionsv1alpha1.BackupBucket) error {
-	s3Client, err := s3.NewClientFromSecretRef(ctx, a.client, bb.Spec.SecretRef, bb.Spec.Region)
+	s3Client, err := ocs.NewClientFromSecretRef(ctx, a.client, bb.Spec.SecretRef, bb.Spec.Region)
 	if err != nil {
 		return err
 	}
@@ -52,7 +52,7 @@ func (a *actuator) Reconcile(ctx context.Context, bb *extensionsv1alpha1.BackupB
 }
 
 func (a *actuator) Delete(ctx context.Context, bb *extensionsv1alpha1.BackupBucket) error {
-	s3Client, err := s3.NewClientFromSecretRef(ctx, a.client, bb.Spec.SecretRef, bb.Spec.Region)
+	s3Client, err := ocs.NewClientFromSecretRef(ctx, a.client, bb.Spec.SecretRef, bb.Spec.Region)
 	if err != nil {
 		return err
 	}
