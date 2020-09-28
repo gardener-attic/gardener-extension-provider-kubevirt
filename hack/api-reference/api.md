@@ -198,6 +198,7 @@ Kubernetes core/v1.DNSPolicy
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Set DNS policy for the VM (the same as for the pod)
 Defaults to &ldquo;ClusterFirst&rdquo;.
 Valid values are &lsquo;ClusterFirstWithHostNet&rsquo;, &lsquo;ClusterFirst&rsquo;, &lsquo;Default&rsquo; or &lsquo;None&rsquo;.
@@ -216,6 +217,7 @@ Kubernetes core/v1.PodDNSConfig
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Specifies the DNS parameters of a VM.
 Parameters specified here will be merged to the generated DNS
 configuration based on DNSPolicy.</p>
@@ -223,15 +225,16 @@ configuration based on DNSPolicy.</p>
 </tr>
 <tr>
 <td>
-<code>DontUsePreAllocatedDataVolumes</code></br>
+<code>dontUsePreAllocatedDataVolumes</code></br>
 <em>
 bool
 </em>
 </td>
 <td>
-<p>DontUsePreAllocatedDataVolumes specifies whether to create a DataVolume for any kubevirt machineclass, in order
-to reference it in the kubevirt VirtualMachine pvc to clone a new DataVolume out of the pre-allocated one. Default is
-false, which means for each created VirtualMachine a new DataVolume will be imported and allocated.</p>
+<em>(Optional)</em>
+<p>DontUsePreAllocatedDataVolumes specifies whether to create a DataVolume per kubevirt machineclass, in order
+to reference it in the kubevirt VirtualMachine PVC to clone a new DataVolume out of the pre-allocated one.
+Default is false.</p>
 </td>
 </tr>
 </tbody>

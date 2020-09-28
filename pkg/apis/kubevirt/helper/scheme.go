@@ -189,14 +189,10 @@ func DecodeCloudProfileConfig(config *runtime.RawExtension, fldPath *field.Path)
 }
 
 // DecodeWorkerConfig decodes the `WorkerConfig` from the given `RawExtension`.
-func DecodeWorkerConfig(decoder runtime.Decoder, worker *runtime.RawExtension) (*api.WorkerConfig, error) {
-	if worker == nil {
-		return nil, nil
-	}
-
+func DecodeWorkerConfig(config *runtime.RawExtension, fldPath *field.Path) (*api.WorkerConfig, error) {
 	workerConfig := &api.WorkerConfig{}
-	if err := util.Decode(decoder, worker.Raw, workerConfig); err != nil {
-		return nil, err
+	if err := util.Decode(decoder, config.Raw, workerConfig); err != nil {
+		return nil, field.Invalid(fldPath, string(config.Raw), "cannot be decoded")
 	}
 
 	return workerConfig, nil

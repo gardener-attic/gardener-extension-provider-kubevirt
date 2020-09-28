@@ -32,15 +32,18 @@ type WorkerConfig struct {
 	// DNS parameters given in DNSConfig will be merged with the policy selected with DNSPolicy.
 	// To have DNS options set along with hostNetwork, you have to specify DNS policy
 	// explicitly to 'ClusterFirstWithHostNet'.
+	// +optional
 	DNSPolicy corev1.DNSPolicy `json:"dnsPolicy,omitempty"`
 	// Specifies the DNS parameters of a VM.
 	// Parameters specified here will be merged to the generated DNS
 	// configuration based on DNSPolicy.
+	// +optional
 	DNSConfig *corev1.PodDNSConfig `json:"dnsConfig,omitempty"`
-	// DontUsePreAllocatedDataVolumes specifies whether to create a DataVolume for any kubevirt machineclass, in order
-	// to reference it in the kubevirt VirtualMachine pvc to clone a new DataVolume out of the pre-allocated one. Default is
-	// false, which means for each created VirtualMachine a new DataVolume will be imported and allocated.
-	DontUsePreAllocatedDataVolumes bool
+	// DontUsePreAllocatedDataVolumes specifies whether to create a DataVolume per kubevirt machineclass, in order
+	// to reference it in the kubevirt VirtualMachine PVC to clone a new DataVolume out of the pre-allocated one.
+	// Default is false.
+	// +optional
+	DontUsePreAllocatedDataVolumes bool `json:"dontUsePreAllocatedDataVolumes,omitempty"`
 }
 
 // +genclient
