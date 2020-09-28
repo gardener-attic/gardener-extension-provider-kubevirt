@@ -61,42 +61,18 @@ func (w *workerDelegate) DeployMachineClasses(ctx context.Context) error {
 		return errors.Wrap(err, "could not apply machine-class chart")
 	}
 
-	dataVolumeLabels := map[string]string{
-		clusterLabel: w.worker.Namespace,
-	}
-
-	kubeconfig, err := kubevirt.GetKubeConfig(ctx, w.Client(), w.worker.Spec.SecretRef)
-	if err != nil {
-		return errors.Wrap(err, "could not get the kubeconfig of the kubevirt cluster")
-	}
-
-	for _, machineClass := range w.machineClasses {
-		var (
-			storageClassName = pointer.StringPtr(machineClass["storageClassName"].(string))
-			pvcSize          = v1.ResourceList{v1.ResourceStorage: machineClass["pvcSize"].(resource.Quantity)}
-			sourceUrl        = machineClass["sourceURL"].(string)
-			machineClassName = machineClass["name"].(string)
-		)
-
-		dataVolumeSpec := cdicorev1alpha1.DataVolumeSpec{
-			PVC: &v1.PersistentVolumeClaimSpec{
-				StorageClassName: storageClassName,
-				AccessModes: []v1.PersistentVolumeAccessMode{
-					"ReadWriteOnce",
-				},
-				Resources: v1.ResourceRequirements{
-					Requests: pvcSize,
-				},
-			},
-			Source: cdicorev1alpha1.DataVolumeSource{
-				HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
-					URL: sourceUrl,
-				},
-			},
+	for _, pool := range w.worker.Spec.Pools {
+		workerConfig := &apiskubevirt.WorkerConfig{}
+		if pool.ProviderConfig != nil && pool.ProviderConfig.Raw != nil {
+			if _, _, err := w.Decoder().Decode(pool.ProviderConfig.Raw, nil, workerConfig); err != nil {
+				return errors.Wrapf(err, "could not decode provider config")
+			}
 		}
 
-		if err := w.dataVolumeManager.CreateOrUpdateDataVolume(ctx, kubeconfig, machineClassName, dataVolumeLabels, dataVolumeSpec); err != nil {
-			return errors.Wrapf(err, "could not create data volume for machine class %s", machineClassName)
+		if !workerConfig.DontUsePreAllocatedDataVolumes {
+			if err := w.allocateDataVolumes(ctx); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -228,4 +204,47 @@ func (w *workerDelegate) getMachineType(name string) (*corev1beta1.MachineType, 
 		}
 	}
 	return nil, fmt.Errorf("machine type %s not found in cloud profile spec", name)
+}
+
+func (w *workerDelegate) allocateDataVolumes(ctx context.Context) error {
+	dataVolumeLabels := map[string]string{
+		clusterLabel: w.worker.Namespace,
+	}
+
+	kubeconfig, err := kubevirt.GetKubeConfig(ctx, w.Client(), w.worker.Spec.SecretRef)
+	if err != nil {
+		return errors.Wrap(err, "could not get the kubeconfig of the kubevirt cluster")
+	}
+
+	for _, machineClass := range w.machineClasses {
+		var (
+			storageClassName = pointer.StringPtr(machineClass["storageClassName"].(string))
+			pvcSize          = v1.ResourceList{v1.ResourceStorage: machineClass["pvcSize"].(resource.Quantity)}
+			sourceUrl        = machineClass["sourceURL"].(string)
+			machineClassName = machineClass["name"].(string)
+		)
+
+		dataVolumeSpec := cdicorev1alpha1.DataVolumeSpec{
+			PVC: &v1.PersistentVolumeClaimSpec{
+				StorageClassName: storageClassName,
+				AccessModes: []v1.PersistentVolumeAccessMode{
+					"ReadWriteOnce",
+				},
+				Resources: v1.ResourceRequirements{
+					Requests: pvcSize,
+				},
+			},
+			Source: cdicorev1alpha1.DataVolumeSource{
+				HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
+					URL: sourceUrl,
+				},
+			},
+		}
+
+		if err := w.dataVolumeManager.CreateOrUpdateDataVolume(ctx, kubeconfig, machineClassName, dataVolumeLabels, dataVolumeSpec); err != nil {
+			return errors.Wrapf(err, "could not create data volume for machine class %s", machineClassName)
+		}
+	}
+
+	return nil
 }
