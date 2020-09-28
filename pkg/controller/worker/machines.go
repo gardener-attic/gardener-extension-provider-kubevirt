@@ -61,19 +61,8 @@ func (w *workerDelegate) DeployMachineClasses(ctx context.Context) error {
 		return errors.Wrap(err, "could not apply machine-class chart")
 	}
 
-	for _, pool := range w.worker.Spec.Pools {
-		workerConfig := &apiskubevirt.WorkerConfig{}
-		if pool.ProviderConfig != nil && pool.ProviderConfig.Raw != nil {
-			if _, _, err := w.Decoder().Decode(pool.ProviderConfig.Raw, nil, workerConfig); err != nil {
-				return errors.Wrapf(err, "could not decode provider config")
-			}
-		}
-
-		if !workerConfig.DontUsePreAllocatedDataVolumes {
-			if err := w.allocateDataVolumes(ctx); err != nil {
-				return err
-			}
-		}
+	if err := w.allocateDataVolumes(ctx); err != nil {
+		return err
 	}
 
 	return nil
@@ -171,8 +160,9 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 				"cloudConfig": string(pool.UserData),
 				"kubeconfig":  string(kubeconfig),
 			},
-			"dnsPolicy": workerConfig.DNSPolicy,
-			"dnsConfig": workerConfig.DNSConfig,
+			"dnsPolicy":                      workerConfig.DNSPolicy,
+			"dnsConfig":                      workerConfig.DNSConfig,
+			"dontUsePreAllocatedDataVolumes": workerConfig.DontUsePreAllocatedDataVolumes,
 		})
 
 		machineDeployments = append(machineDeployments, worker.MachineDeployment{
@@ -217,32 +207,34 @@ func (w *workerDelegate) allocateDataVolumes(ctx context.Context) error {
 	}
 
 	for _, machineClass := range w.machineClasses {
-		var (
-			storageClassName = pointer.StringPtr(machineClass["storageClassName"].(string))
-			pvcSize          = v1.ResourceList{v1.ResourceStorage: machineClass["pvcSize"].(resource.Quantity)}
-			sourceUrl        = machineClass["sourceURL"].(string)
-			machineClassName = machineClass["name"].(string)
-		)
+		if !machineClass["dontUsePreAllocatedDataVolumes"].(bool) {
+			var (
+				storageClassName = pointer.StringPtr(machineClass["storageClassName"].(string))
+				pvcSize          = v1.ResourceList{v1.ResourceStorage: machineClass["pvcSize"].(resource.Quantity)}
+				sourceUrl        = machineClass["sourceURL"].(string)
+				machineClassName = machineClass["name"].(string)
+			)
 
-		dataVolumeSpec := cdicorev1alpha1.DataVolumeSpec{
-			PVC: &v1.PersistentVolumeClaimSpec{
-				StorageClassName: storageClassName,
-				AccessModes: []v1.PersistentVolumeAccessMode{
-					"ReadWriteOnce",
+			dataVolumeSpec := cdicorev1alpha1.DataVolumeSpec{
+				PVC: &v1.PersistentVolumeClaimSpec{
+					StorageClassName: storageClassName,
+					AccessModes: []v1.PersistentVolumeAccessMode{
+						"ReadWriteOnce",
+					},
+					Resources: v1.ResourceRequirements{
+						Requests: pvcSize,
+					},
 				},
-				Resources: v1.ResourceRequirements{
-					Requests: pvcSize,
+				Source: cdicorev1alpha1.DataVolumeSource{
+					HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
+						URL: sourceUrl,
+					},
 				},
-			},
-			Source: cdicorev1alpha1.DataVolumeSource{
-				HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
-					URL: sourceUrl,
-				},
-			},
-		}
+			}
 
-		if err := w.dataVolumeManager.CreateOrUpdateDataVolume(ctx, kubeconfig, machineClassName, dataVolumeLabels, dataVolumeSpec); err != nil {
-			return errors.Wrapf(err, "could not create data volume for machine class %s", machineClassName)
+			if err := w.dataVolumeManager.CreateOrUpdateDataVolume(ctx, kubeconfig, machineClassName, dataVolumeLabels, dataVolumeSpec); err != nil {
+				return errors.Wrapf(err, "could not create data volume for machine class %s", machineClassName)
+			}
 		}
 	}
 

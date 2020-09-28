@@ -33,6 +33,7 @@ type validationContext struct {
 	shoot              *core.Shoot
 	infraConfig        *kubevirt.InfrastructureConfig
 	cpConfig           *kubevirt.ControlPlaneConfig
+	workerConfigs      []*kubevirt.WorkerConfig
 	cloudProfile       *gardencorev1beta1.CloudProfile
 	cloudProfileConfig *kubevirt.CloudProfileConfig
 }
@@ -45,10 +46,11 @@ var (
 	infraConfigPath    = providerPath.Child("infrastructureConfig")
 	cpConfigPath       = providerPath.Child("controlPlaneConfig")
 	workersPath        = providerPath.Child("workers")
+	workerConfigPath   = func(index int) *field.Path { return workersPath.Index(index).Child("providerConfig") }
 )
 
 func (v *Shoot) validateShootCreation(ctx context.Context, shoot *core.Shoot) error {
-	valContext, err := v.newValidationContext(ctx, v.client, shoot)
+	valContext, err := newValidationContext(ctx, v.client, shoot)
 	if err != nil {
 		return err
 	}
@@ -62,12 +64,12 @@ func (v *Shoot) validateShootCreation(ctx context.Context, shoot *core.Shoot) er
 }
 
 func (v *Shoot) validateShootUpdate(ctx context.Context, oldShoot, shoot *core.Shoot) error {
-	oldValContext, err := v.newValidationContext(ctx, v.client, oldShoot)
+	oldValContext, err := newValidationContext(ctx, v.client, oldShoot)
 	if err != nil {
 		return err
 	}
 
-	valContext, err := v.newValidationContext(ctx, v.client, shoot)
+	valContext, err := newValidationContext(ctx, v.client, shoot)
 	if err != nil {
 		return err
 	}
@@ -99,10 +101,11 @@ func (v *Shoot) validateShoot(context *validationContext) field.ErrorList {
 	allErrs = append(allErrs, kubevirtvalidation.ValidateInfrastructureConfig(context.infraConfig, infraConfigPath)...)
 	allErrs = append(allErrs, kubevirtvalidation.ValidateControlPlaneConfig(context.cpConfig, cpConfigPath)...)
 	allErrs = append(allErrs, kubevirtvalidation.ValidateWorkers(context.shoot.Spec.Provider.Workers, workersPath)...)
+	// TODO Validate workerConfigs
 	return allErrs
 }
 
-func (v *Shoot) newValidationContext(ctx context.Context, c client.Client, shoot *core.Shoot) (*validationContext, error) {
+func newValidationContext(ctx context.Context, c client.Client, shoot *core.Shoot) (*validationContext, error) {
 	infraConfig := &kubevirt.InfrastructureConfig{}
 	if shoot.Spec.Provider.InfrastructureConfig != nil {
 		var err error
@@ -112,12 +115,13 @@ func (v *Shoot) newValidationContext(ctx context.Context, c client.Client, shoot
 		}
 	}
 
-	if shoot.Spec.Provider.ControlPlaneConfig == nil {
-		return nil, field.Required(cpConfigPath, "controlPlaneConfig must be set for kubevirt shoots")
-	}
-	cpConfig, err := helper.DecodeControlPlaneConfig(shoot.Spec.Provider.ControlPlaneConfig, cpConfigPath)
-	if err != nil {
-		return nil, err
+	cpConfig := &kubevirt.ControlPlaneConfig{}
+	if shoot.Spec.Provider.ControlPlaneConfig != nil {
+		var err error
+		cpConfig, err = helper.DecodeControlPlaneConfig(shoot.Spec.Provider.ControlPlaneConfig, cpConfigPath)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	cloudProfile := &gardencorev1beta1.CloudProfile{}
@@ -130,13 +134,17 @@ func (v *Shoot) newValidationContext(ctx context.Context, c client.Client, shoot
 	}
 	cloudProfileConfig, err := helper.DecodeCloudProfileConfig(cloudProfile.Spec.ProviderConfig, providerConfigPath)
 	if err != nil {
-		return nil, fmt.Errorf("an error occurred while reading the cloud profile %q: %v", cloudProfile.Name, err)
+		return nil, err
 	}
 
-	for _, worker := range shoot.Spec.Provider.Workers {
-		_, err := helper.DecodeWorkerConfig(v.decoder, worker.ProviderConfig)
-		if err != nil {
-			return nil, fmt.Errorf("an error occoured while decoding workerConfig: %v", err)
+	var workerConfigs []*kubevirt.WorkerConfig
+	for i, worker := range shoot.Spec.Provider.Workers {
+		if worker.ProviderConfig != nil {
+			workerConfig, err := helper.DecodeWorkerConfig(worker.ProviderConfig, workerConfigPath(i))
+			if err != nil {
+				return nil, err
+			}
+			workerConfigs = append(workerConfigs, workerConfig)
 		}
 	}
 
@@ -144,6 +152,7 @@ func (v *Shoot) newValidationContext(ctx context.Context, c client.Client, shoot
 		shoot:              shoot,
 		infraConfig:        infraConfig,
 		cpConfig:           cpConfig,
+		workerConfigs:      workerConfigs,
 		cloudProfile:       cloudProfile,
 		cloudProfileConfig: cloudProfileConfig,
 	}, nil

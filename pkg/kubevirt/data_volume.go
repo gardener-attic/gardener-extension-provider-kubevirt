@@ -127,11 +127,6 @@ func (d *defaultDataVolumeManager) ListDataVolumes(ctx context.Context, kubeconf
 		return nil, errors.Wrapf(err, "could not list DataVolumes in namespace %s", namespace)
 	}
 
-	if len(dvList.Items) == 0 {
-		d.logger.V(2).Info("namespace %s has no data volumes", namespace)
-		return nil, nil
-	}
-
 	return &dvList, nil
 }
 

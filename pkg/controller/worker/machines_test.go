@@ -180,6 +180,7 @@ var _ = Describe("Machines", func() {
 									DNSConfig: &corev1.PodDNSConfig{
 										Nameservers: []string{dnsNameserver},
 									},
+									DontUsePreAllocatedDataVolumes: true,
 								}),
 							},
 						},
@@ -269,6 +270,7 @@ var _ = Describe("Machines", func() {
 					&corev1.PodDNSConfig{
 						Nameservers: []string{dnsNameserver},
 					},
+					true,
 				)
 
 				machineClass2 := generateMachineClass(
@@ -285,6 +287,7 @@ var _ = Describe("Machines", func() {
 					},
 					"",
 					nil,
+					false,
 				)
 
 				chartApplier.
@@ -482,7 +485,7 @@ func generateKubeVirtDataVolumes(providerClient *mockclient.MockClient) {
 }
 
 func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, cpu, memory string, zones []string,
-	tags map[string]string, dnsPolicy corev1.DNSPolicy, dnsConfig *corev1.PodDNSConfig) map[string]interface{} {
+	tags map[string]string, dnsPolicy corev1.DNSPolicy, dnsConfig *corev1.PodDNSConfig, dontUsePreAllocatedDataVolumes bool) map[string]interface{} {
 	out := make(map[string]interface{})
 
 	for k, v := range classTemplate {
@@ -497,6 +500,7 @@ func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, c
 	out["tags"] = tags
 	out["dnsPolicy"] = dnsPolicy
 	out["dnsConfig"] = dnsConfig
+	out["dontUsePreAllocatedDataVolumes"] = dontUsePreAllocatedDataVolumes
 
 	return out
 }
