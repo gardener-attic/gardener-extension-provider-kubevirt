@@ -162,7 +162,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			},
 			"dnsPolicy":                      workerConfig.DNSPolicy,
 			"dnsConfig":                      workerConfig.DNSConfig,
-			"dontUsePreAllocatedDataVolumes": workerConfig.DontUsePreAllocatedDataVolumes,
+			"disablePreAllocatedDataVolumes": workerConfig.DisablePreAllocatedDataVolumes,
 		})
 
 		machineDeployments = append(machineDeployments, worker.MachineDeployment{
@@ -207,7 +207,7 @@ func (w *workerDelegate) allocateDataVolumes(ctx context.Context) error {
 	}
 
 	for _, machineClass := range w.machineClasses {
-		if !machineClass["dontUsePreAllocatedDataVolumes"].(bool) {
+		if !machineClass["disablePreAllocatedDataVolumes"].(bool) {
 			var (
 				storageClassName = pointer.StringPtr(machineClass["storageClassName"].(string))
 				pvcSize          = v1.ResourceList{v1.ResourceStorage: machineClass["pvcSize"].(resource.Quantity)}
