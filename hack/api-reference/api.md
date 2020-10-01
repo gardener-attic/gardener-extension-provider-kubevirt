@@ -190,6 +190,21 @@ string
 </tr>
 <tr>
 <td>
+<code>memoryFeatures</code></br>
+<em>
+kubevirt.io/client-go/api/v1.Memory
+</em>
+</td>
+<td>
+<p>MemoryFeatures allows specifying the VirtualMachineInstance memory features like huge pages and guest memory settings.
+Each feature might require appropriate FeatureGate enabled.
+For hugepages take a look at:
+k8s - <a href="https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/">https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/</a>
+okd - <a href="https://docs.okd.io/3.9/scaling_performance/managing_hugepages.html#huge-pages-prerequisites">https://docs.okd.io/3.9/scaling_performance/managing_hugepages.html#huge-pages-prerequisites</a></p>
+</td>
+</tr>
+<tr>
+<td>
 <code>dnsPolicy</code></br>
 <em>
 <a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.15/#dnspolicy-v1-core">

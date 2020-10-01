@@ -20,6 +20,9 @@ machineClasses:
   dnsConfig:
     nameservers:
     - 8.8.8.8
+  memoryFeatures:
+    hugepages:
+      pageSize: "2Mi"
   secret:
     cloudConfig: abc
     kubeconfig: abc

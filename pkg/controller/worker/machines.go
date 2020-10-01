@@ -163,6 +163,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			"dnsPolicy":                      workerConfig.DNSPolicy,
 			"dnsConfig":                      workerConfig.DNSConfig,
 			"disablePreAllocatedDataVolumes": workerConfig.DisablePreAllocatedDataVolumes,
+			"memoryFeatures":                 workerConfig.MemoryFeatures,
 		})
 
 		machineDeployments = append(machineDeployments, worker.MachineDeployment{

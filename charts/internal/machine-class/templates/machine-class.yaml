@@ -55,6 +55,10 @@ providerSpec:
   dnsConfig:
 {{ toYaml $machineClass.dnsConfig | indent 4 }}
 {{- end }}
+{{- if $machineClass.memoryFeatures }}
+  memoryFeatures:
+{{ toYaml $machineClass.memoryFeatures | indent 4 }}
+{{- end }}
 secretRef:
   name: "{{ $machineClass.name }}"
   namespace: "{{ $.Release.Namespace }}"

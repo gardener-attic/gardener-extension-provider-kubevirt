@@ -17,6 +17,7 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubevirtv1 "kubevirt.io/client-go/api/v1"
 )
 
 // +genclient
@@ -26,6 +27,12 @@ import (
 type WorkerConfig struct {
 	metav1.TypeMeta `json:",inline"`
 
+	// MemoryFeatures allows specifying the VirtualMachineInstance memory features like huge pages and guest memory settings.
+	// Each feature might require appropriate FeatureGate enabled.
+	// For hugepages take a look at:
+	// k8s - https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/
+	// okd - https://docs.okd.io/3.9/scaling_performance/managing_hugepages.html#huge-pages-prerequisites
+	MemoryFeatures *kubevirtv1.Memory `json:"memoryFeatures,omitempty"`
 	// Set DNS policy for the VM (the same as for the pod)
 	// Defaults to "ClusterFirst".
 	// Valid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'.

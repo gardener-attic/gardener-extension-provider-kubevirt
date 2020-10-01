@@ -49,6 +49,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
+	kubevirtv1 "kubevirt.io/client-go/api/v1"
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -181,6 +182,11 @@ var _ = Describe("Machines", func() {
 										Nameservers: []string{dnsNameserver},
 									},
 									DisablePreAllocatedDataVolumes: true,
+									MemoryFeatures: &kubevirtv1.Memory{
+										Hugepages: &kubevirtv1.Hugepages{
+											PageSize: "2Mi",
+										},
+									},
 								}),
 							},
 						},
@@ -271,6 +277,11 @@ var _ = Describe("Machines", func() {
 						Nameservers: []string{dnsNameserver},
 					},
 					true,
+					&kubevirtv1.Memory{
+						Hugepages: &kubevirtv1.Hugepages{
+							PageSize: "2Mi",
+						},
+					},
 				)
 
 				machineClass2 := generateMachineClass(
@@ -288,6 +299,7 @@ var _ = Describe("Machines", func() {
 					"",
 					nil,
 					false,
+					nil,
 				)
 
 				chartApplier.
@@ -485,7 +497,8 @@ func generateKubeVirtDataVolumes(providerClient *mockclient.MockClient) {
 }
 
 func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, cpu, memory string, zones []string,
-	tags map[string]string, dnsPolicy corev1.DNSPolicy, dnsConfig *corev1.PodDNSConfig, disablePreAllocatedDataVolumes bool) map[string]interface{} {
+	tags map[string]string, dnsPolicy corev1.DNSPolicy, dnsConfig *corev1.PodDNSConfig, disablePreAllocatedDataVolumes bool,
+	memoryFeatures *kubevirtv1.Memory) map[string]interface{} {
 	out := make(map[string]interface{})
 
 	for k, v := range classTemplate {
@@ -501,6 +514,7 @@ func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, c
 	out["dnsPolicy"] = dnsPolicy
 	out["dnsConfig"] = dnsConfig
 	out["disablePreAllocatedDataVolumes"] = disablePreAllocatedDataVolumes
+	out["memoryFeatures"] = memoryFeatures
 
 	return out
 }
