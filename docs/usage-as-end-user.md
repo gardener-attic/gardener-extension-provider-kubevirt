@@ -125,6 +125,13 @@ dnsConfig:
   - 8.8.8.8
 # Disable using pre-allocated data volumes. Defaults to 'false'.
 disablePreAllocatedDataVolumes: true
+# Memory features configuration for KubeVirt VMs, allows to set 'hugepages' settings.
+# It requires appropriate feature gate to be enabled, take a look at the following links for more details:
+# * k8s - https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/
+# * okd - https://docs.okd.io/latest/scalability_and_performance/what-huge-pages-do-and-how-they-are-consumed-by-apps.html
+memoryFeatures:
+  hugepages:
+     pageSize: "2Mi"
 ```
 
 Currently, these KubeVirt-specific options may include:

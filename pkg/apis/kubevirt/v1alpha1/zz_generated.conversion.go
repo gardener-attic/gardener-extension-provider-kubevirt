@@ -24,9 +24,10 @@ import (
 	unsafe "unsafe"
 
 	kubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
+	v1 "kubevirt.io/client-go/api/v1"
 )
 
 func init() {
@@ -442,8 +443,9 @@ func Convert_kubevirt_TenantNetwork_To_v1alpha1_TenantNetwork(in *kubevirt.Tenan
 }
 
 func autoConvert_v1alpha1_WorkerConfig_To_kubevirt_WorkerConfig(in *WorkerConfig, out *kubevirt.WorkerConfig, s conversion.Scope) error {
-	out.DNSPolicy = v1.DNSPolicy(in.DNSPolicy)
-	out.DNSConfig = (*v1.PodDNSConfig)(unsafe.Pointer(in.DNSConfig))
+	out.MemoryFeatures = (*v1.Memory)(unsafe.Pointer(in.MemoryFeatures))
+	out.DNSPolicy = corev1.DNSPolicy(in.DNSPolicy)
+	out.DNSConfig = (*corev1.PodDNSConfig)(unsafe.Pointer(in.DNSConfig))
 	out.DisablePreAllocatedDataVolumes = in.DisablePreAllocatedDataVolumes
 	return nil
 }
@@ -454,8 +456,9 @@ func Convert_v1alpha1_WorkerConfig_To_kubevirt_WorkerConfig(in *WorkerConfig, ou
 }
 
 func autoConvert_kubevirt_WorkerConfig_To_v1alpha1_WorkerConfig(in *kubevirt.WorkerConfig, out *WorkerConfig, s conversion.Scope) error {
-	out.DNSPolicy = v1.DNSPolicy(in.DNSPolicy)
-	out.DNSConfig = (*v1.PodDNSConfig)(unsafe.Pointer(in.DNSConfig))
+	out.MemoryFeatures = (*v1.Memory)(unsafe.Pointer(in.MemoryFeatures))
+	out.DNSPolicy = corev1.DNSPolicy(in.DNSPolicy)
+	out.DNSConfig = (*corev1.PodDNSConfig)(unsafe.Pointer(in.DNSConfig))
 	out.DisablePreAllocatedDataVolumes = in.DisablePreAllocatedDataVolumes
 	return nil
 }
