@@ -225,16 +225,14 @@ configuration based on DNSPolicy.</p>
 </tr>
 <tr>
 <td>
-<code>dontUsePreAllocatedDataVolumes</code></br>
+<code>disablePreAllocatedDataVolumes</code></br>
 <em>
 bool
 </em>
 </td>
 <td>
 <em>(Optional)</em>
-<p>DontUsePreAllocatedDataVolumes specifies whether to create a DataVolume per kubevirt machineclass, in order
-to reference it in the kubevirt VirtualMachine PVC to clone a new DataVolume out of the pre-allocated one.
-Default is false.</p>
+<p>DisablePreAllocatedDataVolumes disables using pre-allocated DataVolumes for VMs. Default is false.</p>
 </td>
 </tr>
 </tbody>

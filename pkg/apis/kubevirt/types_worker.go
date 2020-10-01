@@ -36,10 +36,8 @@ type WorkerConfig struct {
 	// Parameters specified here will be merged to the generated DNS
 	// configuration based on DNSPolicy.
 	DNSConfig *corev1.PodDNSConfig
-	// DontUsePreAllocatedDataVolumes specifies whether to create a DataVolume per kubevirt machineclass, in order
-	// to reference it in the kubevirt VirtualMachine PVC to clone a new DataVolume out of the pre-allocated one.
-	// Default is false.
-	DontUsePreAllocatedDataVolumes bool
+	// DisablePreAllocatedDataVolumes disables using pre-allocated DataVolumes for VMs. Default is false.
+	DisablePreAllocatedDataVolumes bool
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

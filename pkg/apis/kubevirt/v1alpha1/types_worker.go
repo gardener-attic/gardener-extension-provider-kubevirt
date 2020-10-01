@@ -39,11 +39,9 @@ type WorkerConfig struct {
 	// configuration based on DNSPolicy.
 	// +optional
 	DNSConfig *corev1.PodDNSConfig `json:"dnsConfig,omitempty"`
-	// DontUsePreAllocatedDataVolumes specifies whether to create a DataVolume per kubevirt machineclass, in order
-	// to reference it in the kubevirt VirtualMachine PVC to clone a new DataVolume out of the pre-allocated one.
-	// Default is false.
+	// DisablePreAllocatedDataVolumes disables using pre-allocated DataVolumes for VMs. Default is false.
 	// +optional
-	DontUsePreAllocatedDataVolumes bool `json:"dontUsePreAllocatedDataVolumes,omitempty"`
+	DisablePreAllocatedDataVolumes bool `json:"disablePreAllocatedDataVolumes,omitempty"`
 }
 
 // +genclient

@@ -444,7 +444,7 @@ func Convert_kubevirt_TenantNetwork_To_v1alpha1_TenantNetwork(in *kubevirt.Tenan
 func autoConvert_v1alpha1_WorkerConfig_To_kubevirt_WorkerConfig(in *WorkerConfig, out *kubevirt.WorkerConfig, s conversion.Scope) error {
 	out.DNSPolicy = v1.DNSPolicy(in.DNSPolicy)
 	out.DNSConfig = (*v1.PodDNSConfig)(unsafe.Pointer(in.DNSConfig))
-	out.DontUsePreAllocatedDataVolumes = in.DontUsePreAllocatedDataVolumes
+	out.DisablePreAllocatedDataVolumes = in.DisablePreAllocatedDataVolumes
 	return nil
 }
 
@@ -456,7 +456,7 @@ func Convert_v1alpha1_WorkerConfig_To_kubevirt_WorkerConfig(in *WorkerConfig, ou
 func autoConvert_kubevirt_WorkerConfig_To_v1alpha1_WorkerConfig(in *kubevirt.WorkerConfig, out *WorkerConfig, s conversion.Scope) error {
 	out.DNSPolicy = v1.DNSPolicy(in.DNSPolicy)
 	out.DNSConfig = (*v1.PodDNSConfig)(unsafe.Pointer(in.DNSConfig))
-	out.DontUsePreAllocatedDataVolumes = in.DontUsePreAllocatedDataVolumes
+	out.DisablePreAllocatedDataVolumes = in.DisablePreAllocatedDataVolumes
 	return nil
 }
 

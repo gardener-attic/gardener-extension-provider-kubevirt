@@ -123,14 +123,14 @@ dnsPolicy: ClusterFirst
 dnsConfig:
   nameservers:
   - 8.8.8.8
-# Don't use pre-allocated data volumes. Defaults to 'false'.
-dontUsePreallocatedDataVolumes: true
+# Disable using pre-allocated data volumes. Defaults to 'false'.
+disablePreAllocatedDataVolumes: true
 ```
 
 Currently, these KubeVirt-specific options may include:
 
 * The DNS policy and DNS configuration for the KubeVirt VMs used as shoot cluster nodes. For more information, see [DNS for Services and Pods](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/).
-* Whether to use *pre-allocated data volumes* with KubeVirt VMs. With pre-allocated data volumes (the default), a data volume is created in advance for each machine class / worker pool, the OS image is imported into this volume only once, and actual KubeVirt VM data volumes are cloned from this data volume. Typically, this significantly speeds up the data volume creation process. You can disable this feature by setting the `dontUsePreallocatedDataVolumes` option to `false`.
+* Whether to use *pre-allocated data volumes* with KubeVirt VMs. With pre-allocated data volumes (the default), a data volume is created in advance for each machine class / worker pool, the OS image is imported into this volume only once, and actual KubeVirt VM data volumes are cloned from this data volume. Typically, this significantly speeds up the data volume creation process. You can disable this feature by setting the `disablePreAllocatedDataVolumes` option to `true`.
 
 ## Region and Zone Support
 
@@ -223,7 +223,7 @@ spec:
 #       dnsConfig:
 #         nameservers:
 #         - 8.8.8.8
-#       dontUsePreallocatedDataVolumes: true
+#       disablePreAllocatedDataVolumes: true
       minimum: 1
       maximum: 2
       zones:
