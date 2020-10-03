@@ -15,23 +15,23 @@
 package validation
 
 import (
-	api "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
 
-	"k8s.io/apimachinery/pkg/util/validation/field"
+	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
-// ValidateInfrastructureConfig validates a InfrastructureConfig object.
-func ValidateInfrastructureConfig(infra *api.InfrastructureConfig, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
+// ValidateCloudProviderSecret checks whether the given secret contains a valid kubeconfig.
+func ValidateCloudProviderSecret(secret *corev1.Secret) error {
+	kubeconfig, ok := secret.Data[kubevirt.Kubeconfig]
+	if !ok {
+		return errors.Errorf("missing %q field in secret", kubevirt.Kubeconfig)
+	}
 
-	// TODO Validate networks
-	return allErrs
-}
+	if _, err := clientcmd.RESTConfigFromKubeConfig(kubeconfig); err != nil {
+		return errors.Wrapf(err, "invalid kubeconfig")
+	}
 
-// ValidateInfrastructureConfigUpdate validates a InfrastructureConfig object.
-func ValidateInfrastructureConfigUpdate(oldConfig, newConfig *api.InfrastructureConfig, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-
-	// TODO Ensure that networks are immutable
-	return allErrs
+	return nil
 }

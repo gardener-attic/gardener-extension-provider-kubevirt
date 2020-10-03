@@ -50,7 +50,4 @@ var _ = Describe("InfrastructureConfig validation", func() {
 
 		// TODO Test changed networks
 	})
-
-	Describe("#ValidateInfrastructureConfigAgainstCloudProfile", func() {
-	})
 })

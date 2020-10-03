@@ -12,26 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package validation
+package cmd
 
 import (
-	api "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
+	extensionswebhook "github.com/gardener/gardener/extensions/pkg/webhook"
 
-	"k8s.io/apimachinery/pkg/util/validation/field"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/admission/validator"
+
+	webhookcmd "github.com/gardener/gardener/extensions/pkg/webhook/cmd"
 )
 
-// ValidateInfrastructureConfig validates a InfrastructureConfig object.
-func ValidateInfrastructureConfig(infra *api.InfrastructureConfig, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-
-	// TODO Validate networks
-	return allErrs
-}
-
-// ValidateInfrastructureConfigUpdate validates a InfrastructureConfig object.
-func ValidateInfrastructureConfigUpdate(oldConfig, newConfig *api.InfrastructureConfig, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-
-	// TODO Ensure that networks are immutable
-	return allErrs
+// GardenWebhookSwitchOptions are the webhookcmd.SwitchOptions for the admission webhooks.
+func GardenWebhookSwitchOptions() *webhookcmd.SwitchOptions {
+	return webhookcmd.NewSwitchOptions(
+		webhookcmd.Switch(extensionswebhook.ValidatorName, validator.New),
+		webhookcmd.Switch(validator.SecretsValidatorName, validator.NewSecretsWebhook),
+	)
 }

@@ -17,7 +17,6 @@ package validation
 import (
 	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
 
-	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
@@ -31,14 +30,4 @@ func ValidateControlPlaneConfig(controlPlaneConfig *apiskubevirt.ControlPlaneCon
 func ValidateControlPlaneConfigUpdate(oldConfig, newConfig *apiskubevirt.ControlPlaneConfig, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	return allErrs
-}
-
-// ValidateControlPlaneConfigAgainstCloudProfile validates the given ControlPlaneConfig against constraints in the given CloudProfile.
-func ValidateControlPlaneConfigAgainstCloudProfile(cpConfig *apiskubevirt.ControlPlaneConfig, shootRegion string, cloudProfile *gardencorev1beta1.CloudProfile, cloudProfileConfig *apiskubevirt.CloudProfileConfig, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-	return allErrs
-}
-
-func HasRelevantControlPlaneConfigUpdates(oldCpConfig *apiskubevirt.ControlPlaneConfig, newCpConfig *apiskubevirt.ControlPlaneConfig) bool {
-	return false
 }

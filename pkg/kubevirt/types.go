@@ -28,6 +28,9 @@ const (
 	// CloudControllerManagerImageName is the name of the cloud-controller-manager image.
 	CloudControllerManagerImageName = "cloud-controller-manager"
 
+	// Kubeconfig is the field in a secret where the kubevirt kubeconfig is stored in.
+	Kubeconfig = "kubeconfig"
+
 	// CloudProviderConfigName is the name of the secret containing the cloud provider config.
 	CloudProviderConfigName = "cloud-provider-config"
 	// CloudControllerManagerName is a constant for the name of the cloud-controller-manager.

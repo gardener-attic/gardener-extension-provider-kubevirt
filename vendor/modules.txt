@@ -122,6 +122,8 @@ github.com/gardener/gardener/extensions/pkg/inject
 github.com/gardener/gardener/extensions/pkg/log
 github.com/gardener/gardener/extensions/pkg/predicate
 github.com/gardener/gardener/extensions/pkg/util
+github.com/gardener/gardener/extensions/pkg/util/index
+github.com/gardener/gardener/extensions/pkg/util/secret
 github.com/gardener/gardener/extensions/pkg/webhook
 github.com/gardener/gardener/extensions/pkg/webhook/cmd
 github.com/gardener/gardener/extensions/pkg/webhook/controlplane
@@ -368,6 +370,7 @@ github.com/nxadm/tail/winfile
 ## explicit
 github.com/onsi/ginkgo
 github.com/onsi/ginkgo/config
+github.com/onsi/ginkgo/extensions/table
 github.com/onsi/ginkgo/ginkgo
 github.com/onsi/ginkgo/ginkgo/convert
 github.com/onsi/ginkgo/ginkgo/interrupthandler
