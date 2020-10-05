@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:generate ../../vendor/github.com/gardener/gardener/hack/generate-controller-registration.sh provider-kubevirt . ../../VERSION ../../example/controller-registration.yaml BackupBucket:OCS BackupEntry:OCS ControlPlane:kubevirt Infrastructure:kubevirt Worker:kubevirt
+//go:generate ../../vendor/github.com/gardener/gardener/hack/generate-controller-registration.sh provider-kubevirt . ../../VERSION ../../example/controller-registration.yaml ControlPlane:kubevirt Infrastructure:kubevirt Worker:kubevirt
 
 // Package chart enables go:generate support for generating the correct controller registration.
 package chart
