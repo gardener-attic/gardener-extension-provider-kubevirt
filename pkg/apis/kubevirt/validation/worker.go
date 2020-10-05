@@ -15,23 +15,19 @@
 package validation
 
 import (
-	api "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
+	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-// ValidateInfrastructureConfig validates a InfrastructureConfig object.
-func ValidateInfrastructureConfig(infra *api.InfrastructureConfig, fldPath *field.Path) field.ErrorList {
+// ValidateWorkerConfig validates a WorkerConfig object.
+func ValidateWorkerConfig(controlPlaneConfig *apiskubevirt.WorkerConfig, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-
-	// TODO Validate networks
 	return allErrs
 }
 
-// ValidateInfrastructureConfigUpdate validates a InfrastructureConfig object.
-func ValidateInfrastructureConfigUpdate(oldConfig, newConfig *api.InfrastructureConfig, fldPath *field.Path) field.ErrorList {
+// ValidateWorkerConfigUpdate validates a WorkerConfig object.
+func ValidateWorkerConfigUpdate(oldConfig, newConfig *apiskubevirt.WorkerConfig, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-
-	// TODO Ensure that networks are immutable
 	return allErrs
 }

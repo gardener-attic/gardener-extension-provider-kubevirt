@@ -20,7 +20,6 @@ import (
 	api "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/install"
 
-	"github.com/gardener/gardener/extensions/pkg/util"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	"github.com/gardener/gardener/pkg/operation/common"
@@ -34,7 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -159,41 +157,4 @@ func GetInfrastructureStatus(w *extensionsv1alpha1.Worker) (*api.InfrastructureS
 		}
 	}
 	return status, nil
-}
-
-func DecodeControlPlaneConfig(cp *runtime.RawExtension, fldPath *field.Path) (*api.ControlPlaneConfig, error) {
-	controlPlaneConfig := &api.ControlPlaneConfig{}
-	if err := util.Decode(decoder, cp.Raw, controlPlaneConfig); err != nil {
-		return nil, field.Invalid(fldPath, string(cp.Raw), "cannot be decoded")
-	}
-
-	return controlPlaneConfig, nil
-}
-
-func DecodeInfrastructureConfig(infra *runtime.RawExtension, fldPath *field.Path) (*api.InfrastructureConfig, error) {
-	infraConfig := &api.InfrastructureConfig{}
-	if err := util.Decode(decoder, infra.Raw, infraConfig); err != nil {
-		return nil, field.Invalid(fldPath, string(infra.Raw), "cannot be decoded")
-	}
-
-	return infraConfig, nil
-}
-
-func DecodeCloudProfileConfig(config *runtime.RawExtension, fldPath *field.Path) (*api.CloudProfileConfig, error) {
-	cloudProfileConfig := &api.CloudProfileConfig{}
-	if err := util.Decode(decoder, config.Raw, cloudProfileConfig); err != nil {
-		return nil, field.Invalid(fldPath, string(config.Raw), "cannot be decoded")
-	}
-
-	return cloudProfileConfig, nil
-}
-
-// DecodeWorkerConfig decodes the `WorkerConfig` from the given `RawExtension`.
-func DecodeWorkerConfig(config *runtime.RawExtension, fldPath *field.Path) (*api.WorkerConfig, error) {
-	workerConfig := &api.WorkerConfig{}
-	if err := util.Decode(decoder, config.Raw, workerConfig); err != nil {
-		return nil, field.Invalid(fldPath, string(config.Raw), "cannot be decoded")
-	}
-
-	return workerConfig, nil
 }

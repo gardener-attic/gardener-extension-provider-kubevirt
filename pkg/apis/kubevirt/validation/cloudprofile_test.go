@@ -18,17 +18,17 @@ import (
 	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
 	. "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/validation"
 
-	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	"github.com/gardener/gardener/pkg/apis/core"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-var _ = Describe("ValidateCloudProfileConfig", func() {
+var _ = Describe("CloudProfileConfig validation", func() {
 	Describe("#ValidateCloudProfileConfig", func() {
 		var cloudProfileConfig *apiskubevirt.CloudProfileConfig
-		var cloudProfileSpec *gardencorev1beta1.CloudProfileSpec
+		var cloudProfileSpec *core.CloudProfileSpec
 
 		BeforeEach(func() {
 			cloudProfileConfig = &apiskubevirt.CloudProfileConfig{
@@ -48,11 +48,11 @@ var _ = Describe("ValidateCloudProfileConfig", func() {
 					},
 				},
 			}
-			cloudProfileSpec = &gardencorev1beta1.CloudProfileSpec{
-				MachineImages: []gardencorev1beta1.MachineImage{
+			cloudProfileSpec = &core.CloudProfileSpec{
+				MachineImages: []core.MachineImage{
 					{
 						Name: "ubuntu",
-						Versions: []gardencorev1beta1.ExpirableVersion{
+						Versions: []core.ExpirableVersion{
 							{
 								Version: "16.04",
 							},

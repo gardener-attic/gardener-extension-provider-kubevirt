@@ -20,13 +20,13 @@ import (
 
 	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
 
-	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	"github.com/gardener/gardener/pkg/apis/core"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 // ValidateCloudProfileConfig validates a CloudProfileConfig object.
-func ValidateCloudProfileConfig(profileSpec *gardencorev1beta1.CloudProfileSpec, profileConfig *apiskubevirt.CloudProfileConfig) field.ErrorList {
+func ValidateCloudProfileConfig(profileSpec *core.CloudProfileSpec, profileConfig *apiskubevirt.CloudProfileConfig) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	machineImagesPath := field.NewPath("machineImages")

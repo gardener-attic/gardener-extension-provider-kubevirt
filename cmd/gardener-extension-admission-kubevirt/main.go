@@ -12,26 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package validation
+package main
 
 import (
-	api "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
+	"github.com/gardener/gardener-extension-provider-kubevirt/cmd/gardener-extension-admission-kubevirt/app"
 
-	"k8s.io/apimachinery/pkg/util/validation/field"
+	"github.com/gardener/gardener/extensions/pkg/controller"
+	controllercmd "github.com/gardener/gardener/extensions/pkg/controller/cmd"
+	"github.com/gardener/gardener/extensions/pkg/log"
+	runtimelog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// ValidateInfrastructureConfig validates a InfrastructureConfig object.
-func ValidateInfrastructureConfig(infra *api.InfrastructureConfig, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
+func main() {
+	runtimelog.SetLogger(log.ZapLogger(false))
+	cmd := app.NewAdmissionCommand(controller.SetupSignalHandlerContext())
 
-	// TODO Validate networks
-	return allErrs
-}
-
-// ValidateInfrastructureConfigUpdate validates a InfrastructureConfig object.
-func ValidateInfrastructureConfigUpdate(oldConfig, newConfig *api.InfrastructureConfig, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-
-	// TODO Ensure that networks are immutable
-	return allErrs
+	if err := cmd.Execute(); err != nil {
+		controllercmd.LogErrAndExit(err, "error executing the main command")
+	}
 }

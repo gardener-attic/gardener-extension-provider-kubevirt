@@ -53,7 +53,7 @@ var _ = Describe("Shoot validation", func() {
 		})
 	})
 
-	Describe("#ValidateWorkerConfig", func() {
+	Describe("Worker validation", func() {
 		var (
 			nilPath *field.Path
 			workers []core.Worker

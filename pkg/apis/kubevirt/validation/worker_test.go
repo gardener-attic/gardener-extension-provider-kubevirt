@@ -23,26 +23,26 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-var _ = Describe("ControlPlaneConfig validation", func() {
+var _ = Describe("WorkerConfig validation", func() {
 	var (
 		nilPath *field.Path
 
-		controlPlane *api.ControlPlaneConfig
+		controlPlane *api.WorkerConfig
 	)
 
 	BeforeEach(func() {
-		controlPlane = &api.ControlPlaneConfig{}
+		controlPlane = &api.WorkerConfig{}
 	})
 
-	Describe("#ValidateControlPlaneConfig", func() {
+	Describe("#ValidateWorkerConfig", func() {
 		It("should return no errors for a valid configuration", func() {
-			Expect(ValidateControlPlaneConfig(controlPlane, nilPath)).To(BeEmpty())
+			Expect(ValidateWorkerConfig(controlPlane, nilPath)).To(BeEmpty())
 		})
 	})
 
-	Describe("#ValidateControlPlaneConfigUpdate", func() {
+	Describe("#ValidateWorkerConfigUpdate", func() {
 		It("should return no errors for an unchanged config", func() {
-			Expect(ValidateControlPlaneConfigUpdate(controlPlane, controlPlane, nilPath)).To(BeEmpty())
+			Expect(ValidateWorkerConfigUpdate(controlPlane, controlPlane, nilPath)).To(BeEmpty())
 		})
 	})
 })

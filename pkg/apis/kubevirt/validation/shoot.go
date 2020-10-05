@@ -27,7 +27,7 @@ func ValidateNetworking(networking core.Networking, fldPath *field.Path) field.E
 	allErrs := field.ErrorList{}
 
 	if networking.Nodes == nil {
-		allErrs = append(allErrs, field.Required(fldPath.Child("nodes"), "a nodes CIDR must be provided for kubevirt shoots"))
+		allErrs = append(allErrs, field.Required(fldPath.Child("nodes"), "a nodes CIDR must be provided for Kubevirt shoots"))
 	}
 
 	return allErrs

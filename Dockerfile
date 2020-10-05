@@ -15,8 +15,8 @@ COPY charts /charts
 COPY --from=builder /go/bin/gardener-extension-provider-kubevirt /gardener-extension-provider-kubevirt
 ENTRYPOINT ["/gardener-extension-provider-kubevirt"]
 
-############# gardener-extension-validator-kubevirt
-FROM base AS gardener-extension-validator-kubevirt
+############# gardener-extension-admission-kubevirt
+FROM base AS gardener-extension-admission-kubevirt
 
-COPY --from=builder /go/bin/gardener-extension-validator-kubevirt /gardener-extension-validator-kubevirt
-ENTRYPOINT ["/gardener-extension-validator-kubevirt"]
+COPY --from=builder /go/bin/gardener-extension-admission-kubevirt /gardener-extension-admission-kubevirt
+ENTRYPOINT ["/gardener-extension-admission-kubevirt"]
