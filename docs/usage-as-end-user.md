@@ -127,13 +127,41 @@ dnsConfig:
   - 8.8.8.8
 # Disable using pre-allocated data volumes. Defaults to 'false'.
 disablePreAllocatedDataVolumes: true
-# Memory features configuration for KubeVirt VMs, allows to set 'hugepages' settings.
-# It requires appropriate feature gate to be enabled, take a look at the following links for more details:
-# * k8s - https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/
-# * okd - https://docs.okd.io/latest/scalability_and_performance/what-huge-pages-do-and-how-they-are-consumed-by-apps.html
-memoryFeatures:
+# cpu allows to set the CPU topology of the VMI
+cpu:
+  # number of cores inside the VMI
+  cores: 1
+  # number of sockets inside the VMI
+  sockets: 2
+  # number of threads inside the VMI
+  threads: 1
+  # models specifies the CPU model of the VMI
+  # list of available models https://github.com/libvirt/libvirt/tree/master/src/cpu_map.
+  # and options https://libvirt.org/formatdomain.html#cpu-model-and-topology
+  model: "host-model"
+  # features specifies the CPU features list inside the VMI
+  features:
+  - "pcid"
+  # dedicatedCPUPlacement requests the scheduler to place the VirtualMachineInstance on a node
+  # with dedicated pCPUs and pin the vCPUs to it.
+  dedicatedCpuPlacement: false
+  # isolateEmulatorThread requests one more dedicated pCPU to be allocated for the VMI to place the emulator thread on it.
+  isolateEmulatorThread: false
+# memory configuration for KubeVirt VMs, allows to set 'hugepages' and 'guest' settings. 
+memory:
+  # hugepages requires appropriate feature gate to be enabled, take a look at the following links for more details:
+  # * k8s - https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/
+  # * okd - https://docs.okd.io/latest/scalability_and_performance/what-huge-pages-do-and-how-they-are-consumed-by-apps.html
   hugepages:
      pageSize: "2Mi"
+  # guest allows to specifying the amount of memory which is visible inside the Guest OS. It must lie between requests and limits.
+  # Defaults to the requested memory in the machineTypes.
+  guest: "1Gi"
+# overcommitGuestOverhead informs the scheduler to not take the guest-management overhead into account. Instead
+# put the overhead only into the container's memory limit. This can lead to crashes if
+# all memory is in use on a node. Defaults to false.
+# For more details take a look at https://kubevirt.io/user-guide/#/usage/overcommit?id=overcommit-the-guest-overhead
+overcommitGuestOverhead: true
 ```
 
 Currently, these KubeVirt-specific options may include:

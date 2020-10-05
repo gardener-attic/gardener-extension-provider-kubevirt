@@ -179,15 +179,22 @@ var _ = Describe("Machines", func() {
 										APIVersion: "kubevirt.provider.extensions.gardener.cloud/v1alpha1",
 										Kind:       "WorkerConfig",
 									},
-									DNSPolicy: corev1.DNSDefault,
+									OvercommitGuestOverhead: true,
+									DNSPolicy:               corev1.DNSDefault,
 									DNSConfig: &corev1.PodDNSConfig{
 										Nameservers: []string{dnsNameserver},
 									},
 									DisablePreAllocatedDataVolumes: true,
-									MemoryFeatures: &kubevirtv1.Memory{
+									Memory: &kubevirtv1.Memory{
 										Hugepages: &kubevirtv1.Hugepages{
 											PageSize: "2Mi",
 										},
+									},
+									CPU: &kubevirtv1.CPU{
+										Cores:                 uint32(1),
+										Sockets:               uint32(2),
+										Threads:               uint32(1),
+										DedicatedCPUPlacement: true,
 									},
 								}),
 							},
@@ -269,9 +276,18 @@ var _ = Describe("Machines", func() {
 					machineClassTemplate,
 					machineClassName1,
 					"8Gi",
-					"2",
-					"4096Mi",
 					"local-1",
+					&kubevirtv1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("2"),
+							corev1.ResourceMemory: resource.MustParse("4096Mi"),
+						},
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("500m"),
+							corev1.ResourceMemory: resource.MustParse("8Gi"),
+						},
+						OvercommitGuestOverhead: true,
+					},
 					map[string]string{
 						"mcm.gardener.cloud/cluster":      namespace,
 						"mcm.gardener.cloud/role":         "node",
@@ -287,15 +303,30 @@ var _ = Describe("Machines", func() {
 							PageSize: "2Mi",
 						},
 					},
+					&kubevirtv1.CPU{
+						Cores:                 uint32(1),
+						Sockets:               uint32(2),
+						Threads:               uint32(1),
+						DedicatedCPUPlacement: true,
+					},
 				)
 
 				machineClass2 := generateMachineClass(
 					machineClassTemplate,
 					machineClassName2,
 					"8Gi",
-					"2",
-					"4096Mi",
 					"local-2",
+					&kubevirtv1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("2"),
+							corev1.ResourceMemory: resource.MustParse("4096Mi"),
+						},
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("500m"),
+							corev1.ResourceMemory: resource.MustParse("8Gi"),
+						},
+						OvercommitGuestOverhead: true,
+					},
 					map[string]string{
 						"mcm.gardener.cloud/cluster":      namespace,
 						"mcm.gardener.cloud/role":         "node",
@@ -311,15 +342,25 @@ var _ = Describe("Machines", func() {
 							PageSize: "2Mi",
 						},
 					},
+					&kubevirtv1.CPU{
+						Cores:                 uint32(1),
+						Sockets:               uint32(2),
+						Threads:               uint32(1),
+						DedicatedCPUPlacement: true,
+					},
 				)
 
 				machineClass3 := generateMachineClass(
 					machineClassTemplate,
 					machineClassName3,
 					"8Gi",
-					"300m",
-					"8192Mi",
 					"local-3",
+					&kubevirtv1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("300m"),
+							corev1.ResourceMemory: resource.MustParse("8192Mi"),
+						},
+					},
 					map[string]string{
 						"mcm.gardener.cloud/cluster":      namespace,
 						"mcm.gardener.cloud/role":         "node",
@@ -328,6 +369,7 @@ var _ = Describe("Machines", func() {
 					"",
 					nil,
 					false,
+					nil,
 					nil,
 				)
 
@@ -467,7 +509,6 @@ var _ = Describe("Machines", func() {
 				result, err := workerDelegate.GenerateMachineDeployments(context.TODO())
 				resultSettings := result[0].MachineConfiguration
 				resultNodeConditions := strings.Join(testNodeConditions, ",")
-
 				Expect(err).NotTo(HaveOccurred())
 				Expect(resultSettings.MachineDrainTimeout).To(Equal(&testDrainTimeout))
 				Expect(resultSettings.MachineCreationTimeout).To(Equal(&testCreationTimeout))
@@ -534,9 +575,9 @@ func generateKubeVirtDataVolumes(providerClient *mockclient.MockClient) {
 		AnyTimes()
 }
 
-func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, cpu, memory string, zone string,
+func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, zone string, resources *kubevirtv1.ResourceRequirements,
 	tags map[string]string, dnsPolicy corev1.DNSPolicy, dnsConfig *corev1.PodDNSConfig, disablePreAllocatedDataVolumes bool,
-	memoryFeatures *kubevirtv1.Memory) map[string]interface{} {
+	memory *kubevirtv1.Memory, cpu *kubevirtv1.CPU) map[string]interface{} {
 	out := make(map[string]interface{})
 
 	for k, v := range classTemplate {
@@ -545,14 +586,14 @@ func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, c
 
 	out["name"] = name
 	out["pvcSize"] = resource.MustParse(pvcSize)
-	out["cpus"] = resource.MustParse(cpu)
-	out["memory"] = resource.MustParse(memory)
 	out["zone"] = zone
+	out["resources"] = resources
 	out["tags"] = tags
 	out["dnsPolicy"] = dnsPolicy
 	out["dnsConfig"] = dnsConfig
 	out["disablePreAllocatedDataVolumes"] = disablePreAllocatedDataVolumes
-	out["memoryFeatures"] = memoryFeatures
+	out["memory"] = memory
+	out["cpu"] = cpu
 
 	return out
 }
@@ -564,6 +605,15 @@ func createCluster(cloudProfileName, shootVersion string, images []kubevirtv1alp
 			Kind:       "CloudProfileConfig",
 		},
 		MachineImages: images,
+		MachineTypes: []kubevirtv1alpha1.MachineType{
+			{
+				Name: "local-1",
+				Limits: &kubevirtv1alpha1.ResourcesLimits{
+					CPU:    resource.MustParse("500m"),
+					Memory: resource.MustParse("8Gi"),
+				},
+			},
+		},
 	}
 	cloudProfileConfigJSON, _ := json.Marshal(cloudProfileConfig)
 

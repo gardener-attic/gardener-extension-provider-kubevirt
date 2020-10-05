@@ -27,12 +27,16 @@ import (
 type WorkerConfig struct {
 	metav1.TypeMeta `json:",inline"`
 
-	// MemoryFeatures allows specifying the VirtualMachineInstance memory features like huge pages and guest memory settings.
+	// CPU allows specifying the CPU topology of KubeVirt VM.
+	// +optional
+	CPU *kubevirtv1.CPU `json:"cpu,omitempty"`
+	// Memory allows specifying the VirtualMachineInstance memory features like huge pages and guest memory settings.
 	// Each feature might require appropriate FeatureGate enabled.
 	// For hugepages take a look at:
 	// k8s - https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/
 	// okd - https://docs.okd.io/3.9/scaling_performance/managing_hugepages.html#huge-pages-prerequisites
-	MemoryFeatures *kubevirtv1.Memory `json:"memoryFeatures,omitempty"`
+	// +optional
+	Memory *kubevirtv1.Memory `json:"memory,omitempty"`
 	// Set DNS policy for the VM (the same as for the pod)
 	// Defaults to "ClusterFirst".
 	// Valid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'.
@@ -49,6 +53,11 @@ type WorkerConfig struct {
 	// DisablePreAllocatedDataVolumes disables using pre-allocated DataVolumes for VMs. Default is false.
 	// +optional
 	DisablePreAllocatedDataVolumes bool `json:"disablePreAllocatedDataVolumes,omitempty"`
+	// OvercommitGuestOverhead informs the scheduler to not take the guest-management overhead into account. Instead
+	// put the overhead only into the container's memory limit. This can lead to crashes if
+	// all memory is in use on a node. Defaults to false.
+	// +optional
+	OvercommitGuestOverhead bool `json:"overcommitGuestOverhead,omitempty"`
 }
 
 // +genclient
