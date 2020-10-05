@@ -1,0 +1,109 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudprovider
+  namespace: shoot--foobar--kubevirt
+type: Opaque
+data:
+  kubeconfig: a3ViZWNvbmZpZw==
+---
+apiVersion: extensions.gardener.cloud/v1alpha1
+kind: Cluster
+metadata:
+  name: shoot--foobar--kubevirt
+spec:
+  cloudProfile:
+    apiVersion: core.gardener.cloud/v1alpha1
+    kind: CloudProfile
+    spec:
+      providerConfig:
+        apiVersion: kubevirt.provider.extensions.gardener.cloud/v1alpha1
+        kind: CloudProfileConfig
+        machineImages:
+        - name: ubuntu
+          versions:
+          - version: "18.04"
+            sourceURL: https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img
+      machineImages:
+      - name: ubuntu
+        versions:
+        - version: "18.04"
+      machineTypes:
+      - name: standard-1
+        cpu: "1"
+        gpu: "0"
+        memory: 4Gi
+        storage:
+          class: default
+          size: 20Gi
+        usable: true
+  seed:
+    apiVersion: core.gardener.cloud/v1alpha1
+    kind: Seed
+  shoot:
+    apiVersion: core.gardener.cloud/v1alpha1
+    kind: Shoot
+    spec:
+      kubernetes:
+        version: 1.13.4
+    status:
+      lastOperation:
+        state: Succeeded
+---
+# This resource does result in the deployment of the machine-controller-manager, the machine classes,
+# and the desired MachineDeployments. However, it does not create actual virtual machines because the
+# provided infrastructure status data is not valid/does not exist.
+apiVersion: extensions.gardener.cloud/v1alpha1
+kind: Worker
+metadata:
+  name: worker
+  namespace: shoot--foobar--kubevirt
+  annotations:
+    gardener.cloud/operation: reconcile
+spec:
+  type: kubevirt
+  region: default
+  secretRef:
+    name: cloudprovider
+    namespace: shoot--foobar--kubevirt
+  infrastructureProviderStatus:
+    apiVersion: kubevirt.provider.extensions.gardener.cloud/v1alpha1
+    kind: InfrastructureStatus
+    networks:
+    - name: default/shoot--dev--kubevirt-network-1
+      default: true
+  pools:
+  - name: cpu-worker
+    machineType: standard-1
+    machineImage:
+      name: ubuntu
+      version: "18.04"
+    minimum: 1
+    maximum: 1
+    maxSurge: 1
+    maxUnavailable: 0
+  # labels:
+  #   key: value
+  # annotations:
+  #   key: value
+  # taints: # See also https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  # - key: foo
+  #   value: bar
+  #   effect: NoSchedule
+    userData: IyEvYmluL2Jhc2gKCmVjaG8gImhlbGxvIHdvcmxkIgo=
+  # volume:
+  #   type: standard
+  #   size: 20Gi
+  # dataVolumes:
+  # - type: standard
+    zones:
+    - default
+  # providerConfig:
+  #   apiVersion: kubevirt.provider.extensions.gardener.cloud/v1alpha1
+  #   kind: WorkerConfig
+  #   dnsConfig:
+  #     nameservers:
+  #     - 8.8.8.8
+  #   dnsPolicy: None
+  #   dontUsePreAllocatedDataVolumes: true
