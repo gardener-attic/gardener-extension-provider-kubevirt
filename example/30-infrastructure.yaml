@@ -1,0 +1,66 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudprovider
+  namespace: shoot--foobar--kubevirt
+type: Opaque
+data:
+  kubeconfig: a3ViZWNvbmZpZw==
+---
+apiVersion: extensions.gardener.cloud/v1alpha1
+kind: Cluster
+metadata:
+  name: shoot--foobar--kubevirt
+spec:
+  cloudProfile:
+    apiVersion: core.gardener.cloud/v1alpha1
+    kind: CloudProfile
+  seed:
+    apiVersion: core.gardener.cloud/v1alpha1
+    kind: Seed
+  shoot:
+    apiVersion: core.gardener.cloud/v1alpha1
+    kind: Shoot
+    spec:
+      networking:
+        nodes: 10.123.124.0/24
+    status:
+      lastOperation:
+        state: Succeeded
+---
+apiVersion: extensions.gardener.cloud/v1alpha1
+kind: Infrastructure
+metadata:
+  name: kubevirt-infra
+  namespace: shoot--foobar--kubevirt
+spec:
+  type: kubevirt
+  region: europe-west1
+  secretRef:
+    name: cloudprovider
+    namespace: shoot--foobar--kubevirt
+  providerConfig:
+    apiVersion: kubevirt.provider.extensions.gardener.cloud/v1alpha1
+    kind: InfrastructureConfig
+    networks:
+      tenantNetworks:
+      - name: network-1
+        config: |
+          {
+            "cniVersion": "0.4.0",
+            "name": "my-whereabouts",
+            "type": "bridge",
+            "bridge": "br-vxlan10",
+            "vlan": 1234,
+            "ipam": {
+              "type": "whereabouts",
+              "range": "10.123.124.0/24",
+              "range_start": "10.123.124.4",
+              "range_end": "10.123.124.200",
+              "routes": [
+                  { "dst": "0.0.0.0/0", "gw" : "10.123.124.1" }
+              ]
+            }
+          }
+        default: true
