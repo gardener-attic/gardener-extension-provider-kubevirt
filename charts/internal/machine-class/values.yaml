@@ -10,9 +10,8 @@ machineClasses:
   networks:
   - name: default/net-conf
     default: true
-  region: local
-  zones:
-  - local
+  region: default
+  zone: default
   tags:
   - kubernetes.io/cluster: foo
     kubernetes.io/role: node

@@ -143,7 +143,7 @@ Currently, these KubeVirt-specific options may include:
 
 ## Region and Zone Support
 
-Nodes in the provider cluster might belong to provider-specific regions and zones, and Kubernetes would then use this information to spread pods across zones as described in [Running in multiple zones](https://kubernetes.io/docs/setup/best-practices/multiple-zones/). You might want to take advantage of these capabilities in the shoot cluster as well. 
+Nodes in the provider cluster may belong to provider-specific regions and zones, and Kubernetes would then use this information to spread pods across zones as described in [Running in multiple zones](https://kubernetes.io/docs/setup/best-practices/multiple-zones/). You may want to take advantage of these capabilities in the shoot cluster as well. 
 
 To achieve this, the KubeVirt provider extension ensures that the region and zones specified in the `Shoot` resource are taken into account when creating the KubeVirt VMs used as shoot cluster nodes. 
 
@@ -159,13 +159,16 @@ spec:
       ...
       zones:
       - europe-west1-c
+      - europe-west1-d
 ```
 
-The shoot region and zones must correspond to the region and zones the provider cluster. As a result, the KubeVirt VMs will only be scheduled on provider cluster nodes belonging to the specified region and zone.
+The shoot region and zones must correspond to the region and zones of the provider cluster. A KubeVirt VM designated for specific region and zone will only be scheduled on provider cluster nodes belonging to these region and zone. If there are no such nodes, or they have insufficient resources, the KubeVirt VM may remain in `Pending` state for a longer period and the shoot reconciliation may fail. Therefore, always make sure that the provider cluster contains nodes for all zones specified in the shoot. 
 
-If your provider cluster is not region and zone aware, or if it contains nodes that don't belong to any region or zone, you can use `default` as the region and zone names to target such nodes.
+If multiple zones are specified for a worker pool, the KubeVirt VMs will be equally distributed over these zones in the specified order.   
 
-Note that the `region` is a mandatory field in the `Shoot` resource, so you must specify either a concrete region or `default`. The `zones` field is not mandatory. If you omit this field, the KubeVirt VMs will be scheduled on any node irrespective of its zone.
+If your provider cluster is not region and zone aware, or if it contains nodes that don't belong to any region or zone, you can use `default` as a region or zone name in the `Shoot` resource to target such nodes.
+
+Note that the `region` and `zones` are mandatory fields in the `Shoot` resource, so you must specify either a concrete region / zone or `default`.
 
 Once the KubeVirt VMs are scheduled on the correct provider cluster nodes, the KubeVirt Cloud Controller Manager (CCM) mentioned above will appropriately label the shoot worker nodes themselves with the appropriate [region and zone labels](https://kubernetes.io/docs/reference/kubernetes-api/labels-annotations-taints/), by propagating the region and zone from the provider cluster nodes, so that Kubernetes multi-zone capabilities are also available in the shoot cluster.
 
