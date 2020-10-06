@@ -21,7 +21,7 @@ import (
 )
 
 // ValidateControlPlaneConfig validates a ControlPlaneConfig object.
-func ValidateControlPlaneConfig(controlPlaneConfig *apiskubevirt.ControlPlaneConfig, fldPath *field.Path) field.ErrorList {
+func ValidateControlPlaneConfig(config *apiskubevirt.ControlPlaneConfig, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	return allErrs
 }
