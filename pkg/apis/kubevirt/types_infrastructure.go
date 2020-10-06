@@ -68,4 +68,6 @@ type NetworkStatus struct {
 	Name string
 	// Default is whether the network is the default or not.
 	Default bool
+	// SHA is an SHA256 checksum of the network configuration.
+	SHA string
 }

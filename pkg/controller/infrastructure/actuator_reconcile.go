@@ -24,6 +24,7 @@ import (
 
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
+	"github.com/gardener/gardener/pkg/utils"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	networkv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"github.com/pkg/errors"
@@ -97,6 +98,7 @@ func (a *actuator) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infr
 		networks = append(networks, kubevirtv1alpha1.NetworkStatus{
 			Name:    kutil.ObjectName(nad),
 			Default: tenantNetwork.Default,
+			SHA:     utils.ComputeSHA256Hex([]byte(tenantNetwork.Config)),
 		})
 	}
 

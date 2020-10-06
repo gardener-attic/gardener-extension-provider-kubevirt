@@ -119,6 +119,7 @@ var _ = Describe("Machines", func() {
 			sshPublicKey := []byte("ssh-rsa AAAAB3...")
 			machineConfiguration := &machinev1alpha1.MachineConfiguration{}
 			networkName := "default/net-conf"
+			networkSHA := "abc"
 			dnsNameserver := "8.8.8.8"
 
 			images := []kubevirtv1alpha1.MachineImages{
@@ -153,6 +154,7 @@ var _ = Describe("Machines", func() {
 								{
 									Name:    networkName,
 									Default: true,
+									SHA:     networkSHA,
 								},
 							},
 						}),
@@ -222,8 +224,8 @@ var _ = Describe("Machines", func() {
 
 				cluster = createCluster(cloudProfileName, shootVersion, images)
 
-				workerPoolHash1, _ = worker.WorkerPoolHash(w.Spec.Pools[0], cluster)
-				workerPoolHash2, _ = worker.WorkerPoolHash(w.Spec.Pools[1], cluster)
+				workerPoolHash1, _ = worker.WorkerPoolHash(w.Spec.Pools[0], cluster, networkName, "true", networkSHA)
+				workerPoolHash2, _ = worker.WorkerPoolHash(w.Spec.Pools[1], cluster, networkName, "true", networkSHA)
 				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, dataVolumeManager)
 			})
 
@@ -242,10 +244,11 @@ var _ = Describe("Machines", func() {
 					"sshKeys": []string{
 						string(sshPublicKey),
 					},
-					"networks": []map[string]interface{}{
+					"networks": []kubevirtv1alpha1.NetworkStatus{
 						{
-							"name":    networkName,
-							"default": true,
+							Name:    networkName,
+							Default: true,
+							SHA:     networkSHA,
 						},
 					},
 					"region": "local",
