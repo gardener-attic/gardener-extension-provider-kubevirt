@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	kubevirtvalidation "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/validation"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/validation"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
 )
 
@@ -72,5 +72,5 @@ func (s *secret) Validate(ctx context.Context, newObj, oldObj runtime.Object) er
 		return nil
 	}
 
-	return kubevirtvalidation.ValidateCloudProviderSecret(secret)
+	return validation.ValidateCloudProviderSecret(secret)
 }

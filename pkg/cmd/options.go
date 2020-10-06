@@ -15,7 +15,7 @@
 package cmd
 
 import (
-	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/controlplane"
+	controlplanecontroller "github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/controlplane"
 	healthcheckcontroller "github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/healthcheck"
 	infrastructurecontroller "github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/infrastructure"
 	workercontroller "github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/worker"
@@ -34,7 +34,7 @@ import (
 // ControllerSwitchOptions are the controllercmd.SwitchOptions for the provider controllers.
 func ControllerSwitchOptions() *controllercmd.SwitchOptions {
 	return controllercmd.NewSwitchOptions(
-		controllercmd.Switch(extensionscontrolplanecontroller.ControllerName, controlplane.AddToManager),
+		controllercmd.Switch(extensionscontrolplanecontroller.ControllerName, controlplanecontroller.AddToManager),
 		controllercmd.Switch(extensionsinfrastructurecontroller.ControllerName, infrastructurecontroller.AddToManager),
 		controllercmd.Switch(extensionsworkercontroller.ControllerName, workercontroller.AddToManager),
 		controllercmd.Switch(extensionshealthcheckcontroller.ControllerName, healthcheckcontroller.AddToManager),

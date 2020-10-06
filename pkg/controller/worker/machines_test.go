@@ -25,8 +25,8 @@ import (
 	"strings"
 	"time"
 
-	api "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
-	apiv1alpha1 "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/v1alpha1"
+	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
+	kubevirtv1alpha1 "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/v1alpha1"
 	. "github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/worker"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
 
@@ -121,10 +121,10 @@ var _ = Describe("Machines", func() {
 			networkName := "default/net-conf"
 			dnsNameserver := "8.8.8.8"
 
-			images := []apiv1alpha1.MachineImages{
+			images := []kubevirtv1alpha1.MachineImages{
 				{
 					Name: machineImageName,
-					Versions: []apiv1alpha1.MachineImageVersion{
+					Versions: []kubevirtv1alpha1.MachineImageVersion{
 						{
 							Version:   machineImageVersion,
 							SourceURL: ubuntuSourceURL,
@@ -144,12 +144,12 @@ var _ = Describe("Machines", func() {
 					},
 					Region: "local",
 					InfrastructureProviderStatus: &runtime.RawExtension{
-						Raw: encode(&apiv1alpha1.InfrastructureStatus{
+						Raw: encode(&kubevirtv1alpha1.InfrastructureStatus{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: "kubevirt.provider.extensions.gardener.cloud/v1alpha1",
 								Kind:       "InfrastructureStatus",
 							},
-							Networks: []apiv1alpha1.NetworkStatus{
+							Networks: []kubevirtv1alpha1.NetworkStatus{
 								{
 									Name:    networkName,
 									Default: true,
@@ -172,7 +172,7 @@ var _ = Describe("Machines", func() {
 							UserData: userData,
 							Zones:    []string{"local-1"},
 							ProviderConfig: &runtime.RawExtension{
-								Raw: encode(&apiv1alpha1.WorkerConfig{
+								Raw: encode(&kubevirtv1alpha1.WorkerConfig{
 									TypeMeta: metav1.TypeMeta{
 										APIVersion: "kubevirt.provider.extensions.gardener.cloud/v1alpha1",
 										Kind:       "WorkerConfig",
@@ -216,8 +216,8 @@ var _ = Describe("Machines", func() {
 
 			BeforeEach(func() {
 				scheme = runtime.NewScheme()
-				_ = api.AddToScheme(scheme)
-				_ = apiv1alpha1.AddToScheme(scheme)
+				_ = apiskubevirt.AddToScheme(scheme)
+				_ = kubevirtv1alpha1.AddToScheme(scheme)
 				decoder = serializer.NewCodecFactory(scheme).UniversalDecoder()
 
 				cluster = createCluster(cloudProfileName, shootVersion, images)
@@ -324,12 +324,12 @@ var _ = Describe("Machines", func() {
 
 				By("comparing machine images")
 				machineImages, err := workerDelegate.GetMachineImages(context.TODO())
-				Expect(machineImages).To(Equal(&apiv1alpha1.WorkerStatus{
+				Expect(machineImages).To(Equal(&kubevirtv1alpha1.WorkerStatus{
 					TypeMeta: metav1.TypeMeta{
-						APIVersion: apiv1alpha1.SchemeGroupVersion.String(),
+						APIVersion: kubevirtv1alpha1.SchemeGroupVersion.String(),
 						Kind:       "WorkerStatus",
 					},
-					MachineImages: []apiv1alpha1.MachineImage{
+					MachineImages: []kubevirtv1alpha1.MachineImage{
 						{
 							Name:      machineImageName,
 							Version:   machineImageVersion,
@@ -386,10 +386,10 @@ var _ = Describe("Machines", func() {
 
 				generateKubeVirtSecret(c)
 
-				imagesOutOfConfig := []apiv1alpha1.MachineImages{
+				imagesOutOfConfig := []kubevirtv1alpha1.MachineImages{
 					{
 						Name: "ubuntu",
-						Versions: []apiv1alpha1.MachineImageVersion{
+						Versions: []kubevirtv1alpha1.MachineImageVersion{
 							{
 								Version:   "18.04",
 								SourceURL: "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img",
@@ -519,10 +519,10 @@ func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, c
 	return out
 }
 
-func createCluster(cloudProfileName, shootVersion string, images []apiv1alpha1.MachineImages) *extensionscontroller.Cluster {
-	cloudProfileConfig := &apiv1alpha1.CloudProfileConfig{
+func createCluster(cloudProfileName, shootVersion string, images []kubevirtv1alpha1.MachineImages) *extensionscontroller.Cluster {
+	cloudProfileConfig := &kubevirtv1alpha1.CloudProfileConfig{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: apiv1alpha1.SchemeGroupVersion.String(),
+			APIVersion: kubevirtv1alpha1.SchemeGroupVersion.String(),
 			Kind:       "CloudProfileConfig",
 		},
 		MachineImages: images,

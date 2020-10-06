@@ -19,20 +19,20 @@ import (
 	"fmt"
 	"os"
 
-	apiskubevirthelper "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/helper"
-	kubevirtinstall "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/install"
-	kubevirtcmd "github.com/gardener/gardener-extension-provider-kubevirt/pkg/cmd"
-	kubevirtcontrolplane "github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/controlplane"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/helper"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/install"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/cmd"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/controlplane"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/healthcheck"
-	kubevirtinfra "github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/infrastructure"
-	kubevirtworker "github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/worker"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/infrastructure"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/worker"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
-	kubevirtcontrolplaneexposure "github.com/gardener/gardener-extension-provider-kubevirt/pkg/webhook/controlplaneexposure"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/webhook/controlplaneexposure"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/gardener/extensions/pkg/controller"
 	controllercmd "github.com/gardener/gardener/extensions/pkg/controller/cmd"
-	"github.com/gardener/gardener/extensions/pkg/controller/worker"
+	controlerworker "github.com/gardener/gardener/extensions/pkg/controller/worker"
 	"github.com/gardener/gardener/extensions/pkg/util"
 	webhookcmd "github.com/gardener/gardener/extensions/pkg/webhook/cmd"
 	machinev1alpha1 "github.com/gardener/machine-controller-manager/pkg/apis/machine/v1alpha1"
@@ -54,7 +54,7 @@ func NewControllerManagerCommand(ctx context.Context) *cobra.Command {
 			LeaderElectionNamespace: os.Getenv("LEADER_ELECTION_NAMESPACE"),
 			WebhookServerPort:       443,
 		}
-		configFileOpts = &kubevirtcmd.ConfigOptions{}
+		configFileOpts = &cmd.ConfigOptions{}
 
 		// options for the infrastructure controller
 		infraCtrlOpts = &controllercmd.ControllerOptions{
@@ -76,7 +76,7 @@ func NewControllerManagerCommand(ctx context.Context) *cobra.Command {
 		workerCtrlOpts = &controllercmd.ControllerOptions{
 			MaxConcurrentReconciles: 5,
 		}
-		workerReconcileOpts = &worker.Options{
+		workerReconcileOpts = &controlerworker.Options{
 			DeployCRDs: true,
 		}
 		workerCtrlOptsUnprefixed = controllercmd.NewOptionAggregator(workerCtrlOpts, workerReconcileOpts)
@@ -86,8 +86,8 @@ func NewControllerManagerCommand(ctx context.Context) *cobra.Command {
 			Namespace: os.Getenv("WEBHOOK_CONFIG_NAMESPACE"),
 		}
 
-		controllerSwitches = kubevirtcmd.ControllerSwitchOptions()
-		webhookSwitches    = kubevirtcmd.WebhookSwitchOptions()
+		controllerSwitches = cmd.ControllerSwitchOptions()
+		webhookSwitches    = cmd.WebhookSwitchOptions()
 		webhookOptions     = webhookcmd.NewAddToManagerOptions(kubevirt.Name, webhookServerOptions, webhookSwitches)
 
 		aggOption = controllercmd.NewOptionAggregator(
@@ -114,13 +114,13 @@ func NewControllerManagerCommand(ctx context.Context) *cobra.Command {
 
 			util.ApplyClientConnectionConfigurationToRESTConfig(configFileOpts.Completed().Config.ClientConnection, restOpts.Completed().Config)
 			if workerReconcileOpts.Completed().DeployCRDs {
-				if err := worker.ApplyMachineResourcesForConfig(ctx, restOpts.Completed().Config); err != nil {
+				if err := controlerworker.ApplyMachineResourcesForConfig(ctx, restOpts.Completed().Config); err != nil {
 					controllercmd.LogErrAndExit(err, "Error ensuring the machine CRDs")
 				}
 			}
 
 			// TODO: remove the call and function once the MachineClass CRD deployment is fixed in Gardener
-			if err := apiskubevirthelper.ApplyMachineClassCRDs(ctx, restOpts.Completed().Config); err != nil {
+			if err := helper.ApplyMachineClassCRDs(ctx, restOpts.Completed().Config); err != nil {
 				controllercmd.LogErrAndExit(err, "Error ensuring the machine class CRD")
 			}
 
@@ -133,7 +133,7 @@ func NewControllerManagerCommand(ctx context.Context) *cobra.Command {
 			if err := controller.AddToScheme(scheme); err != nil {
 				controllercmd.LogErrAndExit(err, "Could not update manager scheme")
 			}
-			if err := kubevirtinstall.AddToScheme(scheme); err != nil {
+			if err := install.AddToScheme(scheme); err != nil {
 				controllercmd.LogErrAndExit(err, "Could not update manager scheme")
 			}
 			if err := druidv1alpha1.AddToScheme(scheme); err != nil {
@@ -159,19 +159,19 @@ func NewControllerManagerCommand(ctx context.Context) *cobra.Command {
 			metav1.AddToGroupVersion(scheme, machinev1alpha1.SchemeGroupVersion)
 
 			// apply config options
-			configFileOpts.Completed().ApplyETCDStorage(&kubevirtcontrolplaneexposure.DefaultAddOptions.ETCDStorage)
+			configFileOpts.Completed().ApplyETCDStorage(&controlplaneexposure.DefaultAddOptions.ETCDStorage)
 			configFileOpts.Completed().ApplyHealthCheckConfig(&healthcheck.DefaultAddOptions.HealthCheckConfig)
 
 			// apply controller options
 			healthCheckCtrlOpts.Completed().Apply(&healthcheck.DefaultAddOptions.Controller)
-			controlPlaneCtrlOpts.Completed().Apply(&kubevirtcontrolplane.DefaultAddOptions.Controller)
-			infraCtrlOpts.Completed().Apply(&kubevirtinfra.DefaultAddOptions.Controller)
-			workerCtrlOpts.Completed().Apply(&kubevirtworker.DefaultAddOptions.Controller)
+			controlPlaneCtrlOpts.Completed().Apply(&controlplane.DefaultAddOptions.Controller)
+			infraCtrlOpts.Completed().Apply(&infrastructure.DefaultAddOptions.Controller)
+			workerCtrlOpts.Completed().Apply(&worker.DefaultAddOptions.Controller)
 
 			// apply reconciliation options
-			reconcileOpts.Completed().Apply(&kubevirtinfra.DefaultAddOptions.IgnoreOperationAnnotation)
-			reconcileOpts.Completed().Apply(&kubevirtcontrolplane.DefaultAddOptions.IgnoreOperationAnnotation)
-			reconcileOpts.Completed().Apply(&kubevirtworker.DefaultAddOptions.IgnoreOperationAnnotation)
+			reconcileOpts.Completed().Apply(&infrastructure.DefaultAddOptions.IgnoreOperationAnnotation)
+			reconcileOpts.Completed().Apply(&controlplane.DefaultAddOptions.IgnoreOperationAnnotation)
+			reconcileOpts.Completed().Apply(&worker.DefaultAddOptions.IgnoreOperationAnnotation)
 
 			if _, _, err := webhookOptions.Completed().AddToManager(mgr); err != nil {
 				controllercmd.LogErrAndExit(err, "Could not add webhooks to manager")

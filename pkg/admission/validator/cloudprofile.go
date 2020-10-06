@@ -18,7 +18,7 @@ import (
 	"context"
 
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/admission"
-	kubevirtvlaidation "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/validation"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/validation"
 
 	extensionswebhook "github.com/gardener/gardener/extensions/pkg/webhook"
 	"github.com/gardener/gardener/pkg/apis/core"
@@ -61,5 +61,5 @@ func (cp *cloudProfile) Validate(ctx context.Context, new, old runtime.Object) e
 		return errors.Wrapf(err, "could not decode providerConfig in cloud profile %q", cloudProfile.Name)
 	}
 
-	return kubevirtvlaidation.ValidateCloudProfileConfig(&cloudProfile.Spec, cpConfig).ToAggregate()
+	return validation.ValidateCloudProfileConfig(&cloudProfile.Spec, cpConfig).ToAggregate()
 }

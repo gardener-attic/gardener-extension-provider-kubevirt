@@ -17,7 +17,7 @@ package helper
 import (
 	"context"
 
-	api "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
+	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/install"
 
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
@@ -105,8 +105,8 @@ func ApplyMachineClassCRDs(ctx context.Context, config *rest.Config) error {
 }
 
 // GetCloudProfileConfig extracts the CloudProfileConfig from the ProviderConfig section of the given CloudProfile.
-func GetCloudProfileConfig(cloudProfile *gardencorev1beta1.CloudProfile) (*api.CloudProfileConfig, error) {
-	cloudProfileConfig := &api.CloudProfileConfig{}
+func GetCloudProfileConfig(cloudProfile *gardencorev1beta1.CloudProfile) (*apiskubevirt.CloudProfileConfig, error) {
+	cloudProfileConfig := &apiskubevirt.CloudProfileConfig{}
 	if cloudProfile.Spec.ProviderConfig != nil && cloudProfile.Spec.ProviderConfig.Raw != nil {
 		if _, _, err := decoder.Decode(cloudProfile.Spec.ProviderConfig.Raw, nil, cloudProfileConfig); err != nil {
 			return nil, errors.Wrapf(err, "could not decode providerConfig of cloudProfile '%s'", kutil.ObjectName(cloudProfile))
@@ -116,8 +116,8 @@ func GetCloudProfileConfig(cloudProfile *gardencorev1beta1.CloudProfile) (*api.C
 }
 
 // GetInfrastructureConfig extracts the InfrastructureConfig from the ProviderConfig section of the given Infrastructure.
-func GetInfrastructureConfig(infra *extensionsv1alpha1.Infrastructure) (*api.InfrastructureConfig, error) {
-	config := &api.InfrastructureConfig{}
+func GetInfrastructureConfig(infra *extensionsv1alpha1.Infrastructure) (*apiskubevirt.InfrastructureConfig, error) {
+	config := &apiskubevirt.InfrastructureConfig{}
 	if infra.Spec.ProviderConfig != nil && infra.Spec.ProviderConfig.Raw != nil {
 		if _, _, err := decoder.Decode(infra.Spec.ProviderConfig.Raw, nil, config); err != nil {
 			return nil, errors.Wrapf(err, "could not decode providerConfig of infrastructure '%s'", kutil.ObjectName(infra))
@@ -127,8 +127,8 @@ func GetInfrastructureConfig(infra *extensionsv1alpha1.Infrastructure) (*api.Inf
 }
 
 // GetControlPlaneConfig extracts the ControlPlaneConfig from the ProviderConfig section of the given ControlPlane.
-func GetControlPlaneConfig(cp *extensionsv1alpha1.ControlPlane) (*api.ControlPlaneConfig, error) {
-	config := &api.ControlPlaneConfig{}
+func GetControlPlaneConfig(cp *extensionsv1alpha1.ControlPlane) (*apiskubevirt.ControlPlaneConfig, error) {
+	config := &apiskubevirt.ControlPlaneConfig{}
 	if cp.Spec.ProviderConfig != nil && cp.Spec.ProviderConfig.Raw != nil {
 		if _, _, err := decoder.Decode(cp.Spec.ProviderConfig.Raw, nil, config); err != nil {
 			return nil, errors.Wrapf(err, "could not decode providerConfig of controlplane '%s'", kutil.ObjectName(cp))
@@ -138,8 +138,8 @@ func GetControlPlaneConfig(cp *extensionsv1alpha1.ControlPlane) (*api.ControlPla
 }
 
 // GetWorkerConfig extracts the WorkerConfig from the ProviderConfig section of the given Worker.
-func GetWorkerConfig(p *extensionsv1alpha1.WorkerPool) (*api.WorkerConfig, error) {
-	config := &api.WorkerConfig{}
+func GetWorkerConfig(p *extensionsv1alpha1.WorkerPool) (*apiskubevirt.WorkerConfig, error) {
+	config := &apiskubevirt.WorkerConfig{}
 	if p.ProviderConfig != nil && p.ProviderConfig.Raw != nil {
 		if _, _, err := decoder.Decode(p.ProviderConfig.Raw, nil, config); err != nil {
 			return nil, errors.Wrapf(err, "could not decode providerConfig of worker pool '%s'", p.Name)
@@ -149,8 +149,8 @@ func GetWorkerConfig(p *extensionsv1alpha1.WorkerPool) (*api.WorkerConfig, error
 }
 
 // GetInfrastructureStatus extracts the InfrastructureStatus from the InfrastructureProviderStatus section of the given Worker.
-func GetInfrastructureStatus(w *extensionsv1alpha1.Worker) (*api.InfrastructureStatus, error) {
-	status := &api.InfrastructureStatus{}
+func GetInfrastructureStatus(w *extensionsv1alpha1.Worker) (*apiskubevirt.InfrastructureStatus, error) {
+	status := &apiskubevirt.InfrastructureStatus{}
 	if w.Spec.InfrastructureProviderStatus != nil && w.Spec.InfrastructureProviderStatus.Raw != nil {
 		if _, _, err := decoder.Decode(w.Spec.InfrastructureProviderStatus.Raw, nil, status); err != nil {
 			return nil, errors.Wrapf(err, "could not decode infrastructureProviderStatus of worker '%s'", kutil.ObjectName(w))

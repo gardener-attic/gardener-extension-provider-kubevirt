@@ -15,7 +15,7 @@
 package validation_test
 
 import (
-	api "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
+	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
 	. "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/validation"
 
 	. "github.com/onsi/ginkgo"
@@ -27,11 +27,11 @@ var _ = Describe("WorkerConfig validation", func() {
 	var (
 		nilPath *field.Path
 
-		controlPlane *api.WorkerConfig
+		controlPlane *apiskubevirt.WorkerConfig
 	)
 
 	BeforeEach(func() {
-		controlPlane = &api.WorkerConfig{}
+		controlPlane = &apiskubevirt.WorkerConfig{}
 	})
 
 	Describe("#ValidateWorkerConfig", func() {
