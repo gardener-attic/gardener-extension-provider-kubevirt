@@ -21,7 +21,7 @@ import (
 )
 
 // ValidateWorkerConfig validates a WorkerConfig object.
-func ValidateWorkerConfig(controlPlaneConfig *apiskubevirt.WorkerConfig, fldPath *field.Path) field.ErrorList {
+func ValidateWorkerConfig(config *apiskubevirt.WorkerConfig, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	return allErrs
 }
