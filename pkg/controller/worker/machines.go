@@ -118,9 +118,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 	}
 
 	for _, pool := range w.worker.Spec.Pools {
-		// hardcoded for now as we don't support zones yet
-		zoneIdx := int32(0)
-		zoneLen := int32(1)
+		zoneLen := int32(len(pool.Zones))
 
 		workerConfig, err := helper.GetWorkerConfig(&pool)
 		if err != nil {
@@ -147,48 +145,52 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			SourceURL: imageSourceURL,
 		})
 
-		deploymentName := fmt.Sprintf("%s-%s-z", w.worker.Namespace, pool.Name)
-		className := fmt.Sprintf("%s-%s", deploymentName, workerPoolHash)
+		for zoneIndex, zone := range pool.Zones {
+			zoneIdx := int32(zoneIndex)
 
-		machineClasses = append(machineClasses, map[string]interface{}{
-			"name":             className,
-			"storageClassName": machineType.Storage.Class,
-			"pvcSize":          machineType.Storage.StorageSize,
-			"sourceURL":        imageSourceURL,
-			"cpus":             machineType.CPU,
-			"memory":           machineType.Memory,
-			"sshKeys":          []string{string(w.worker.Spec.SSHPublicKey)},
-			"networks":         infrastructureStatusV1alpha1.Networks,
-			"region":           w.worker.Spec.Region,
-			"zones":            pool.Zones,
-			"tags": map[string]string{
-				"mcm.gardener.cloud/cluster":      w.worker.Namespace,
-				"mcm.gardener.cloud/role":         "node",
-				"mcm.gardener.cloud/machineclass": className,
-			},
-			"secret": map[string]interface{}{
-				"cloudConfig": string(pool.UserData),
-				"kubeconfig":  string(kubeconfig),
-			},
-			"dnsPolicy":                      workerConfig.DNSPolicy,
-			"dnsConfig":                      workerConfig.DNSConfig,
-			"disablePreAllocatedDataVolumes": workerConfig.DisablePreAllocatedDataVolumes,
-			"memoryFeatures":                 workerConfig.MemoryFeatures,
-		})
+			deploymentName := fmt.Sprintf("%s-%s-z%d", w.worker.Namespace, pool.Name, zoneIndex+1)
+			className := fmt.Sprintf("%s-%s", deploymentName, workerPoolHash)
 
-		machineDeployments = append(machineDeployments, worker.MachineDeployment{
-			Name:                 deploymentName,
-			ClassName:            className,
-			SecretName:           className,
-			Minimum:              worker.DistributeOverZones(zoneIdx, pool.Minimum, zoneLen),
-			Maximum:              worker.DistributeOverZones(zoneIdx, pool.Maximum, zoneLen),
-			MaxSurge:             worker.DistributePositiveIntOrPercent(zoneIdx, pool.MaxSurge, zoneLen, pool.Maximum),
-			MaxUnavailable:       worker.DistributePositiveIntOrPercent(zoneIdx, pool.MaxUnavailable, zoneLen, pool.Minimum),
-			Labels:               pool.Labels,
-			Annotations:          pool.Annotations,
-			Taints:               pool.Taints,
-			MachineConfiguration: genericworkeractuator.ReadMachineConfiguration(pool),
-		})
+			machineClasses = append(machineClasses, map[string]interface{}{
+				"name":             className,
+				"storageClassName": machineType.Storage.Class,
+				"pvcSize":          machineType.Storage.StorageSize,
+				"sourceURL":        imageSourceURL,
+				"cpus":             machineType.CPU,
+				"memory":           machineType.Memory,
+				"sshKeys":          []string{string(w.worker.Spec.SSHPublicKey)},
+				"networks":         infrastructureStatusV1alpha1.Networks,
+				"region":           w.worker.Spec.Region,
+				"zone":             zone,
+				"tags": map[string]string{
+					"mcm.gardener.cloud/cluster":      w.worker.Namespace,
+					"mcm.gardener.cloud/role":         "node",
+					"mcm.gardener.cloud/machineclass": className,
+				},
+				"secret": map[string]interface{}{
+					"cloudConfig": string(pool.UserData),
+					"kubeconfig":  string(kubeconfig),
+				},
+				"dnsPolicy":                      workerConfig.DNSPolicy,
+				"dnsConfig":                      workerConfig.DNSConfig,
+				"disablePreAllocatedDataVolumes": workerConfig.DisablePreAllocatedDataVolumes,
+				"memoryFeatures":                 workerConfig.MemoryFeatures,
+			})
+
+			machineDeployments = append(machineDeployments, worker.MachineDeployment{
+				Name:                 deploymentName,
+				ClassName:            className,
+				SecretName:           className,
+				Minimum:              worker.DistributeOverZones(zoneIdx, pool.Minimum, zoneLen),
+				Maximum:              worker.DistributeOverZones(zoneIdx, pool.Maximum, zoneLen),
+				MaxSurge:             worker.DistributePositiveIntOrPercent(zoneIdx, pool.MaxSurge, zoneLen, pool.Maximum),
+				MaxUnavailable:       worker.DistributePositiveIntOrPercent(zoneIdx, pool.MaxUnavailable, zoneLen, pool.Minimum),
+				Labels:               pool.Labels,
+				Annotations:          pool.Annotations,
+				Taints:               pool.Taints,
+				MachineConfiguration: genericworkeractuator.ReadMachineConfiguration(pool),
+			})
+		}
 	}
 
 	w.machineDeployments = machineDeployments

@@ -172,7 +172,7 @@ var _ = Describe("Machines", func() {
 								Version: machineImageVersion,
 							},
 							UserData: userData,
-							Zones:    []string{"local-1"},
+							Zones:    []string{"local-1", "local-2"},
 							ProviderConfig: &runtime.RawExtension{
 								Raw: encode(&kubevirtv1alpha1.WorkerConfig{
 									TypeMeta: metav1.TypeMeta{
@@ -204,7 +204,7 @@ var _ = Describe("Machines", func() {
 								Version: machineImageVersion,
 							},
 							UserData: userData,
-							Zones:    []string{"local-2"},
+							Zones:    []string{"local-3"},
 						},
 					},
 					SSHPublicKey: sshPublicKey,
@@ -232,11 +232,13 @@ var _ = Describe("Machines", func() {
 			It("should return the expected machine deployments", func() {
 				generateKubeVirtSecret(c)
 
-				machineDeploymentName1 := fmt.Sprintf("%s-%s-z", namespace, namePool1)
-				machineDeploymentName2 := fmt.Sprintf("%s-%s-z", namespace, namePool2)
+				machineDeploymentName1 := fmt.Sprintf("%s-%s-z%d", namespace, namePool1, 1)
+				machineDeploymentName2 := fmt.Sprintf("%s-%s-z%d", namespace, namePool1, 2)
+				machineDeploymentName3 := fmt.Sprintf("%s-%s-z%d", namespace, namePool2, 1)
 
 				machineClassName1 := fmt.Sprintf("%s-%s", machineDeploymentName1, workerPoolHash1)
-				machineClassName2 := fmt.Sprintf("%s-%s", machineDeploymentName2, workerPoolHash2)
+				machineClassName2 := fmt.Sprintf("%s-%s", machineDeploymentName2, workerPoolHash1)
+				machineClassName3 := fmt.Sprintf("%s-%s", machineDeploymentName3, workerPoolHash2)
 
 				machineClassTemplate := map[string]interface{}{
 					"storageClassName": "standard",
@@ -269,7 +271,7 @@ var _ = Describe("Machines", func() {
 					"8Gi",
 					"2",
 					"4096Mi",
-					[]string{"local-1"},
+					"local-1",
 					map[string]string{
 						"mcm.gardener.cloud/cluster":      namespace,
 						"mcm.gardener.cloud/role":         "node",
@@ -291,13 +293,37 @@ var _ = Describe("Machines", func() {
 					machineClassTemplate,
 					machineClassName2,
 					"8Gi",
-					"300m",
-					"8192Mi",
-					[]string{"local-2"},
+					"2",
+					"4096Mi",
+					"local-2",
 					map[string]string{
 						"mcm.gardener.cloud/cluster":      namespace,
 						"mcm.gardener.cloud/role":         "node",
 						"mcm.gardener.cloud/machineclass": machineClassName2,
+					},
+					corev1.DNSDefault,
+					&corev1.PodDNSConfig{
+						Nameservers: []string{dnsNameserver},
+					},
+					true,
+					&kubevirtv1.Memory{
+						Hugepages: &kubevirtv1.Hugepages{
+							PageSize: "2Mi",
+						},
+					},
+				)
+
+				machineClass3 := generateMachineClass(
+					machineClassTemplate,
+					machineClassName3,
+					"8Gi",
+					"300m",
+					"8192Mi",
+					"local-3",
+					map[string]string{
+						"mcm.gardener.cloud/cluster":      namespace,
+						"mcm.gardener.cloud/role":         "node",
+						"mcm.gardener.cloud/machineclass": machineClassName3,
 					},
 					"",
 					nil,
@@ -315,6 +341,7 @@ var _ = Describe("Machines", func() {
 						kubernetes.Values(map[string]interface{}{"machineClasses": []map[string]interface{}{
 							machineClass1,
 							machineClass2,
+							machineClass3,
 						}}),
 					).
 					Return(nil)
@@ -343,28 +370,36 @@ var _ = Describe("Machines", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("comparing machine deployments")
-				zoneIdx := int32(0)
-				zoneLen := int32(1)
 
 				machineDeployments := worker.MachineDeployments{
 					{
 						Name:                 machineDeploymentName1,
 						ClassName:            machineClassName1,
 						SecretName:           machineClassName1,
-						Minimum:              worker.DistributeOverZones(zoneIdx, minPool1, zoneLen),
-						Maximum:              worker.DistributeOverZones(zoneIdx, maxPool1, zoneLen),
-						MaxSurge:             worker.DistributePositiveIntOrPercent(zoneIdx, maxSurgePool1, zoneLen, maxPool1),
-						MaxUnavailable:       worker.DistributePositiveIntOrPercent(zoneIdx, maxUnavailablePool1, zoneLen, minPool1),
+						Minimum:              worker.DistributeOverZones(0, minPool1, 2),
+						Maximum:              worker.DistributeOverZones(0, maxPool1, 2),
+						MaxSurge:             worker.DistributePositiveIntOrPercent(0, maxSurgePool1, 2, maxPool1),
+						MaxUnavailable:       worker.DistributePositiveIntOrPercent(0, maxUnavailablePool1, 2, minPool1),
 						MachineConfiguration: machineConfiguration,
 					},
 					{
 						Name:                 machineDeploymentName2,
 						ClassName:            machineClassName2,
 						SecretName:           machineClassName2,
-						Minimum:              worker.DistributeOverZones(zoneIdx, minPool2, zoneLen),
-						Maximum:              worker.DistributeOverZones(zoneIdx, maxPool2, zoneLen),
-						MaxSurge:             worker.DistributePositiveIntOrPercent(zoneIdx, maxSurgePool2, zoneLen, maxPool2),
-						MaxUnavailable:       worker.DistributePositiveIntOrPercent(zoneIdx, maxUnavailablePool2, zoneLen, minPool2),
+						Minimum:              worker.DistributeOverZones(1, minPool1, 2),
+						Maximum:              worker.DistributeOverZones(1, maxPool1, 2),
+						MaxSurge:             worker.DistributePositiveIntOrPercent(1, maxSurgePool1, 2, maxPool2),
+						MaxUnavailable:       worker.DistributePositiveIntOrPercent(1, maxUnavailablePool1, 2, minPool2),
+						MachineConfiguration: machineConfiguration,
+					},
+					{
+						Name:                 machineDeploymentName3,
+						ClassName:            machineClassName3,
+						SecretName:           machineClassName3,
+						Minimum:              worker.DistributeOverZones(0, minPool2, 1),
+						Maximum:              worker.DistributeOverZones(0, maxPool2, 1),
+						MaxSurge:             worker.DistributePositiveIntOrPercent(0, maxSurgePool2, 1, maxPool2),
+						MaxUnavailable:       worker.DistributePositiveIntOrPercent(0, maxUnavailablePool2, 1, minPool2),
 						MachineConfiguration: machineConfiguration,
 					},
 				}
@@ -499,7 +534,7 @@ func generateKubeVirtDataVolumes(providerClient *mockclient.MockClient) {
 		AnyTimes()
 }
 
-func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, cpu, memory string, zones []string,
+func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, cpu, memory string, zone string,
 	tags map[string]string, dnsPolicy corev1.DNSPolicy, dnsConfig *corev1.PodDNSConfig, disablePreAllocatedDataVolumes bool,
 	memoryFeatures *kubevirtv1.Memory) map[string]interface{} {
 	out := make(map[string]interface{})
@@ -512,7 +547,7 @@ func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, c
 	out["pvcSize"] = resource.MustParse(pvcSize)
 	out["cpus"] = resource.MustParse(cpu)
 	out["memory"] = resource.MustParse(memory)
-	out["zones"] = zones
+	out["zone"] = zone
 	out["tags"] = tags
 	out["dnsPolicy"] = dnsPolicy
 	out["dnsConfig"] = dnsConfig
