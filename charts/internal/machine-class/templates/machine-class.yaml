@@ -19,7 +19,8 @@ metadata:
   namespace: "{{ $.Release.Namespace }}"
 providerSpec:
 {{- if $machineClass.resources }}
-  resources: "{{ $machineClass.resources }}"
+  resources:
+{{ toYaml $machineClass.resources | indent 4 }}
 {{ end }}
 {{- if $machineClass.storageClassName }}
   storageClassName: "{{ $machineClass.storageClassName }}"
