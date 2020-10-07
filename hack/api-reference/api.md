@@ -65,6 +65,20 @@ string
 logical names and versions to provider-specific identifiers.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>machineTypes</code></br>
+<em>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.MachineType">
+[]MachineType
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>MachineTypes extend machineType object to KubeVirt provider specific config</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.ControlPlaneConfig">ControlPlaneConfig
@@ -153,6 +167,7 @@ NetworksConfig
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Networks is the configuration of the infrastructure networks.</p>
 </td>
 </tr>
@@ -190,13 +205,26 @@ string
 </tr>
 <tr>
 <td>
-<code>memoryFeatures</code></br>
+<code>cpu</code></br>
+<em>
+kubevirt.io/client-go/api/v1.CPU
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>CPU allows specifying the CPU topology of KubeVirt VM.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>memory</code></br>
 <em>
 kubevirt.io/client-go/api/v1.Memory
 </em>
 </td>
 <td>
-<p>MemoryFeatures allows specifying the VirtualMachineInstance memory features like huge pages and guest memory settings.
+<em>(Optional)</em>
+<p>Memory allows specifying the VirtualMachineInstance memory features like huge pages and guest memory settings.
 Each feature might require appropriate FeatureGate enabled.
 For hugepages take a look at:
 k8s - <a href="https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/">https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/</a>
@@ -248,6 +276,20 @@ bool
 <td>
 <em>(Optional)</em>
 <p>DisablePreAllocatedDataVolumes disables using pre-allocated DataVolumes for VMs. Default is false.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>overcommitGuestOverhead</code></br>
+<em>
+bool
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>OvercommitGuestOverhead informs the scheduler to not take the guest-management overhead into account. Instead
+put the overhead only into the container&rsquo;s memory limit. This can lead to crashes if
+all memory is in use on a node. Defaults to false.</p>
 </td>
 </tr>
 </tbody>
@@ -498,6 +540,50 @@ string
 </tr>
 </tbody>
 </table>
+<h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.MachineType">MachineType
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.CloudProfileConfig">CloudProfileConfig</a>)
+</p>
+<p>
+<p>MachineType extend machineType object to KubeVirt provider specific config</p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>name</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Name is a reference for a machine type object</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>limits</code></br>
+<em>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.ResourcesLimits">
+ResourcesLimits
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Limits defines resources limits of KubeVirt VMs</p>
+</td>
+</tr>
+</tbody>
+</table>
 <h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.NetworkAttachmentDefinitionReference">NetworkAttachmentDefinitionReference
 </h3>
 <p>
@@ -637,6 +723,49 @@ string
 <td>
 <em>(Optional)</em>
 <p>TenantNetworks is a list of &ldquo;tenant&rdquo; networks that are only used by this cluster.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.ResourcesLimits">ResourcesLimits
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.MachineType">MachineType</a>)
+</p>
+<p>
+<p>ResourceLimits define resources limits of KubeVirt VMs</p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>cpu</code></br>
+<em>
+k8s.io/apimachinery/pkg/api/resource.Quantity
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>CPU limits</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>memory</code></br>
+<em>
+k8s.io/apimachinery/pkg/api/resource.Quantity
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Memory limits</p>
 </td>
 </tr>
 </tbody>

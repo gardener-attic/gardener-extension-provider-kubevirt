@@ -36,6 +36,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
+	kubevirtv1 "kubevirt.io/client-go/api/v1"
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
@@ -145,6 +146,23 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			SourceURL: imageSourceURL,
 		})
 
+		resourceRequirements := &kubevirtv1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				v1.ResourceCPU:    machineType.CPU,
+				v1.ResourceMemory: machineType.Memory,
+			},
+			OvercommitGuestOverhead: workerConfig.OvercommitGuestOverhead,
+		}
+
+		if mt := w.getMachineTypesExtension(machineType.Name); mt != nil {
+			if mt.Limits != nil {
+				resourceRequirements.Limits = v1.ResourceList{
+					v1.ResourceCPU:    mt.Limits.CPU,
+					v1.ResourceMemory: mt.Limits.Memory,
+				}
+			}
+		}
+
 		for zoneIndex, zone := range pool.Zones {
 			zoneIdx := int32(zoneIndex)
 
@@ -153,11 +171,10 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 
 			machineClasses = append(machineClasses, map[string]interface{}{
 				"name":             className,
+				"resources":        resourceRequirements,
 				"storageClassName": machineType.Storage.Class,
 				"pvcSize":          machineType.Storage.StorageSize,
 				"sourceURL":        imageSourceURL,
-				"cpus":             machineType.CPU,
-				"memory":           machineType.Memory,
 				"sshKeys":          []string{string(w.worker.Spec.SSHPublicKey)},
 				"networks":         infrastructureStatusV1alpha1.Networks,
 				"region":           w.worker.Spec.Region,
@@ -174,7 +191,8 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 				"dnsPolicy":                      workerConfig.DNSPolicy,
 				"dnsConfig":                      workerConfig.DNSConfig,
 				"disablePreAllocatedDataVolumes": workerConfig.DisablePreAllocatedDataVolumes,
-				"memoryFeatures":                 workerConfig.MemoryFeatures,
+				"memory":                         workerConfig.Memory,
+				"cpu":                            workerConfig.CPU,
 			})
 
 			machineDeployments = append(machineDeployments, worker.MachineDeployment{

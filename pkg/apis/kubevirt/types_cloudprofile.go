@@ -15,6 +15,7 @@
 package kubevirt
 
 import (
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -27,6 +28,8 @@ type CloudProfileConfig struct {
 	// MachineImages is the list of machine images that are understood by the controller. It maps
 	// logical names and versions to provider-specific identifiers.
 	MachineImages []MachineImages
+	// MachineTypes extend machineType object to KubeVirt provider specific config
+	MachineTypes []MachineType
 }
 
 // MachineImages is a mapping from logical names and versions to provider-specific identifiers.
@@ -45,8 +48,18 @@ type MachineImageVersion struct {
 	SourceURL string
 }
 
-// MachineDeploymentConfig defines deployment config for VMs for specific machine type
-type MachineDeploymentConfig struct {
-	// MachineTypeName is the name of the machine type, used as a reference to MachineType object
-	MachineTypeName string
+// MachineType extend machineType object to KubeVirt provider specific config
+type MachineType struct {
+	// Name is a reference for a machine type object
+	Name string
+	// Limits defines resources limits of KubeVirt VMs
+	Limits *ResourcesLimits
+}
+
+// ResourceLimits define resources limits of KubeVirt VMs
+type ResourcesLimits struct {
+	// CPU limits
+	CPU resource.Quantity
+	// Memory limits
+	Memory resource.Quantity
 }

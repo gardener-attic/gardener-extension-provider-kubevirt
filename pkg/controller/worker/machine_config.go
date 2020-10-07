@@ -82,6 +82,17 @@ func (w *workerDelegate) getMachineImageURL(name, version string) (string, error
 	return "", errorMachineImageNotFound(name, version)
 }
 
+func (w *workerDelegate) getMachineTypesExtension(machineType string) *apiskubevirt.MachineType {
+	if w.cloudProfileConfig != nil {
+		for _, ml := range w.cloudProfileConfig.MachineTypes {
+			if machineType == ml.Name {
+				return &ml
+			}
+		}
+	}
+	return nil
+}
+
 func errorMachineImageNotFound(name, version string) error {
 	return fmt.Errorf("could not find machine image for %s/%s neither in componentconfig nor in worker status", name, version)
 }

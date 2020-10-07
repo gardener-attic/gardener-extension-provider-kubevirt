@@ -25,7 +25,8 @@ import (
 type InfrastructureConfig struct {
 	metav1.TypeMeta `json:",inline"`
 	// Networks is the configuration of the infrastructure networks.
-	Networks NetworksConfig `json:"networks"`
+	// +optional
+	Networks NetworksConfig `json:"networks,omitempty"`
 }
 
 // NetworksConfig contains information about the configuration of the infrastructure networks.

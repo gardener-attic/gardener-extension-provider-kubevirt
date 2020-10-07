@@ -1,10 +1,16 @@
 machineClasses:
 - name: class-1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "2Gi"
+    limits:
+      cpu: "300m"
+      memory: "4Gi"
+    overcommitGuestOverhead: true
   storageClassName: standard
   pvcSize: "10Gi"
   sourceURL: source-image-url
-  cpus: "1"
-  memory: "4096M"
   sshKeys:
   - "ssh-rsa AAAAB3..."
   networks:
@@ -19,9 +25,13 @@ machineClasses:
   dnsConfig:
     nameservers:
     - 8.8.8.8
-  memoryFeatures:
+  memory:
     hugepages:
       pageSize: "2Mi"
+  cpu:
+    sockets: 2
+    threads: 1
+    cores: 1
   secret:
     cloudConfig: abc
     kubeconfig: abc

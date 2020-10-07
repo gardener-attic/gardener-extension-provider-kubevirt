@@ -22,6 +22,15 @@ machineImages:
   versions:
   - version: "18.04"
     sourceURL: https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img
+# machineTypes extend cloud profile's spec.machineType object to KubeVirt provider specific config
+machineTypes:
+# name is used as a reference to the machineType object
+- name: standard-1  
+  # limits is equivalent to resource limits of pod
+  # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container
+  limits:
+    cpu: "2"
+    memory: 8Gi
 ```
 
 ### Example `CloudProfile` manifest

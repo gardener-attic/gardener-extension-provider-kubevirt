@@ -18,6 +18,9 @@ metadata:
   name: {{ $machineClass.name }}
   namespace: "{{ $.Release.Namespace }}"
 providerSpec:
+{{- if $machineClass.resources }}
+  resources: "{{ $machineClass.resources }}"
+{{ end }}
 {{- if $machineClass.storageClassName }}
   storageClassName: "{{ $machineClass.storageClassName }}"
 {{ end }}
@@ -26,12 +29,6 @@ providerSpec:
 {{ end }}
 {{- if $machineClass.sourceURL }}
   sourceURL: "{{ $machineClass.sourceURL }}"
-{{ end }}
-{{- if $machineClass.cpus }}
-  cpus: "{{ $machineClass.cpus }}"
-{{ end }}
-{{- if $machineClass.memory }}
-  memory: "{{ $machineClass.memory }}"
 {{ end }}
   sshKeys:
 {{ toYaml $machineClass.sshKeys | indent 4 }}
@@ -52,9 +49,13 @@ providerSpec:
   dnsConfig:
 {{ toYaml $machineClass.dnsConfig | indent 4 }}
 {{- end }}
-{{- if $machineClass.memoryFeatures }}
-  memoryFeatures:
-{{ toYaml $machineClass.memoryFeatures | indent 4 }}
+{{- if $machineClass.memory }}
+  memory:
+{{ toYaml $machineClass.memory | indent 4 }}
+{{- end }}
+{{- if $machineClass.cpu }}
+  cpu:
+{{ toYaml $machineClass.cpu | indent 4 }}
 {{- end }}
 secretRef:
   name: "{{ $machineClass.name }}"
