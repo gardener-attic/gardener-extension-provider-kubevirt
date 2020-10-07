@@ -85,7 +85,9 @@ A non-empty infrastructure configuration can contain:
 
 Both shared and tenant networks are maintained in the provider cluster via [Multus CNI](https://github.com/intel/multus-cni/blob/master/README.md) [NetworkAttachmentDefinition](https://intel.github.io/multus-cni/doc/quickstart.html) resources. For shared networks, these resources must be created in advance, while for tenant networks they are managed by the shoot reconciliation process.
 
-In order to use any additional CNI plugins in a tenant network configuration, such as `bridge` or `firewall` in the above example, the plugin binaries must be present in the `/opt/cni/bin` directory of the provider cluster nodes. They can be installed manually by downloading a [containernetworking/plugins](https://github.com/containernetworking/plugins) release (not recommended except for testing a new configuration). Alternatively, they can be installed via a specially prepared daemon set that ensures the existence of the plugin binaries on each provider cluster node. 
+In order to use any additional CNI plugins in a tenant network configuration, such as `bridge` or `firewall` in the above example, the plugin binaries must be present in the `/opt/cni/bin` directory of the provider cluster nodes. They can be installed manually by downloading a [containernetworking/plugins](https://github.com/containernetworking/plugins) release (not recommended except for testing a new configuration). Alternatively, they can be installed via a specially prepared daemon set that ensures the existence of the plugin binaries on each provider cluster node.
+
+**Note:** Although it is possible to update the network configuration in `InfrastructureConfig`, any such changes will result in recreating all KubeVirt VMs, so that the new network configuration is properly taken into account. This will be done automatically by the MCM using rolling update.
 
 ## `ControlPlaneConfig`
 

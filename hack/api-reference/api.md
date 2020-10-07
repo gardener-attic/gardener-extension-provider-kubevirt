@@ -356,6 +356,7 @@ map[string]bool
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Networks is the status of the infrastructure networks.</p>
 </td>
 </tr>
@@ -577,6 +578,18 @@ bool
 <td>
 <em>(Optional)</em>
 <p>Default is whether the network is the default or not.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>sha</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>SHA is an SHA256 checksum of the network configuration.</p>
 </td>
 </tr>
 </tbody>

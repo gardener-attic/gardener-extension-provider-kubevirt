@@ -18,9 +18,11 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strconv"
 
 	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/helper"
+	kubevirtv1alpha1 "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/v1alpha1"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
 
 	"github.com/gardener/gardener/extensions/pkg/controller/worker"
@@ -31,6 +33,7 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
@@ -95,6 +98,21 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 		return err
 	}
 
+	infrastructureStatusV1alpha1 := &kubevirtv1alpha1.InfrastructureStatus{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: kubevirtv1alpha1.SchemeGroupVersion.String(),
+			Kind:       "InfrastructureStatus",
+		},
+	}
+	if err := w.Scheme().Convert(infrastructureStatus, infrastructureStatusV1alpha1, nil); err != nil {
+		return err
+	}
+
+	var networksData []string
+	for _, network := range infrastructureStatus.Networks {
+		networksData = append(networksData, network.Name, strconv.FormatBool(network.Default), network.SHA)
+	}
+
 	if len(w.worker.Spec.SSHPublicKey) == 0 {
 		return fmt.Errorf("missing sshPublicKey in worker")
 	}
@@ -114,7 +132,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			return err
 		}
 
-		workerPoolHash, err := worker.WorkerPoolHash(pool, w.cluster)
+		workerPoolHash, err := worker.WorkerPoolHash(pool, w.cluster, networksData...)
 		if err != nil {
 			return err
 		}
@@ -132,14 +150,6 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 		deploymentName := fmt.Sprintf("%s-%s-z", w.worker.Namespace, pool.Name)
 		className := fmt.Sprintf("%s-%s", deploymentName, workerPoolHash)
 
-		var networks []map[string]interface{}
-		for _, networkStatus := range infrastructureStatus.Networks {
-			networks = append(networks, map[string]interface{}{
-				"name":    networkStatus.Name,
-				"default": networkStatus.Default,
-			})
-		}
-
 		machineClasses = append(machineClasses, map[string]interface{}{
 			"name":             className,
 			"storageClassName": machineType.Storage.Class,
@@ -148,7 +158,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			"cpus":             machineType.CPU,
 			"memory":           machineType.Memory,
 			"sshKeys":          []string{string(w.worker.Spec.SSHPublicKey)},
-			"networks":         networks,
+			"networks":         infrastructureStatusV1alpha1.Networks,
 			"region":           w.worker.Spec.Region,
 			"zones":            pool.Zones,
 			"tags": map[string]string{

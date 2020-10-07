@@ -64,7 +64,8 @@ type TenantNetwork struct {
 type InfrastructureStatus struct {
 	metav1.TypeMeta `json:",inline"`
 	// Networks is the status of the infrastructure networks.
-	Networks []NetworkStatus `json:"networks"`
+	// +optional
+	Networks []NetworkStatus `json:"networks,omitempty"`
 }
 
 // NetworkStatus contains information about the status of an infrastructure network.
@@ -74,4 +75,7 @@ type NetworkStatus struct {
 	// Default is whether the network is the default or not.
 	// +optional
 	Default bool `json:"default,omitempty"`
+	// SHA is an SHA256 checksum of the network configuration.
+	// +optional
+	SHA string `json:"sha,omitempty"`
 }

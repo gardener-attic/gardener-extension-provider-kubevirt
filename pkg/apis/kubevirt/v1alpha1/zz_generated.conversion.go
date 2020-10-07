@@ -377,6 +377,7 @@ func Convert_kubevirt_NetworkAttachmentDefinitionReference_To_v1alpha1_NetworkAt
 func autoConvert_v1alpha1_NetworkStatus_To_kubevirt_NetworkStatus(in *NetworkStatus, out *kubevirt.NetworkStatus, s conversion.Scope) error {
 	out.Name = in.Name
 	out.Default = in.Default
+	out.SHA = in.SHA
 	return nil
 }
 
@@ -388,6 +389,7 @@ func Convert_v1alpha1_NetworkStatus_To_kubevirt_NetworkStatus(in *NetworkStatus,
 func autoConvert_kubevirt_NetworkStatus_To_v1alpha1_NetworkStatus(in *kubevirt.NetworkStatus, out *NetworkStatus, s conversion.Scope) error {
 	out.Name = in.Name
 	out.Default = in.Default
+	out.SHA = in.SHA
 	return nil
 }
 
