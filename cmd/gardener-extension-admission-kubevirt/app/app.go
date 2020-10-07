@@ -18,15 +18,15 @@ import (
 	"context"
 	"fmt"
 
-	admissioncmd "github.com/gardener/gardener-extension-provider-kubevirt/pkg/admission/cmd"
-	kubevirtinstall "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/install"
-	providerkubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/admission/cmd"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/install"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
 
 	controllercmd "github.com/gardener/gardener/extensions/pkg/controller/cmd"
 	"github.com/gardener/gardener/extensions/pkg/util"
 	"github.com/gardener/gardener/extensions/pkg/util/index"
 	webhookcmd "github.com/gardener/gardener/extensions/pkg/webhook/cmd"
-	"github.com/gardener/gardener/pkg/apis/core/install"
+	coreinstall "github.com/gardener/gardener/pkg/apis/core/install"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -45,7 +45,7 @@ func NewAdmissionCommand(ctx context.Context) *cobra.Command {
 			WebhookServerPort: 443,
 		}
 
-		webhookSwitches = admissioncmd.GardenWebhookSwitchOptions()
+		webhookSwitches = cmd.GardenWebhookSwitchOptions()
 		webhookOptions  = webhookcmd.NewAddToManagerSimpleOptions(webhookSwitches)
 
 		aggOption = controllercmd.NewOptionAggregator(
@@ -56,7 +56,7 @@ func NewAdmissionCommand(ctx context.Context) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use: fmt.Sprintf("admission-%s", providerkubevirt.Type),
+		Use: fmt.Sprintf("admission-%s", kubevirt.Type),
 
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := aggOption.Complete(); err != nil {
@@ -73,9 +73,9 @@ func NewAdmissionCommand(ctx context.Context) *cobra.Command {
 				return errors.Wrapf(err, "could not instantiate manager")
 			}
 
-			install.Install(mgr.GetScheme())
+			coreinstall.Install(mgr.GetScheme())
 
-			if err := kubevirtinstall.AddToScheme(mgr.GetScheme()); err != nil {
+			if err := install.AddToScheme(mgr.GetScheme()); err != nil {
 				return errors.Wrapf(err, "could not update manager scheme")
 			}
 

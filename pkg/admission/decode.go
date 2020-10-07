@@ -15,15 +15,15 @@
 package admission
 
 import (
-	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
+	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
 
 	"github.com/gardener/gardener/extensions/pkg/util"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // DecodeWorkerConfig decodes the `WorkerConfig` from the given `RawExtension`.
-func DecodeWorkerConfig(decoder runtime.Decoder, worker *runtime.RawExtension) (*kubevirt.WorkerConfig, error) {
-	workerConfig := &kubevirt.WorkerConfig{}
+func DecodeWorkerConfig(decoder runtime.Decoder, worker *runtime.RawExtension) (*apiskubevirt.WorkerConfig, error) {
+	workerConfig := &apiskubevirt.WorkerConfig{}
 	if err := util.Decode(decoder, worker.Raw, workerConfig); err != nil {
 		return nil, err
 	}
@@ -32,8 +32,8 @@ func DecodeWorkerConfig(decoder runtime.Decoder, worker *runtime.RawExtension) (
 }
 
 // DecodeControlPlaneConfig decodes the `ControlPlaneConfig` from the given `RawExtension`.
-func DecodeControlPlaneConfig(decoder runtime.Decoder, cp *runtime.RawExtension) (*kubevirt.ControlPlaneConfig, error) {
-	controlPlaneConfig := &kubevirt.ControlPlaneConfig{}
+func DecodeControlPlaneConfig(decoder runtime.Decoder, cp *runtime.RawExtension) (*apiskubevirt.ControlPlaneConfig, error) {
+	controlPlaneConfig := &apiskubevirt.ControlPlaneConfig{}
 	if err := util.Decode(decoder, cp.Raw, controlPlaneConfig); err != nil {
 		return nil, err
 	}
@@ -42,8 +42,8 @@ func DecodeControlPlaneConfig(decoder runtime.Decoder, cp *runtime.RawExtension)
 }
 
 // DecodeInfrastructureConfig decodes the `InfrastructureConfig` from the given `RawExtension`.
-func DecodeInfrastructureConfig(decoder runtime.Decoder, infra *runtime.RawExtension) (*kubevirt.InfrastructureConfig, error) {
-	infraConfig := &kubevirt.InfrastructureConfig{}
+func DecodeInfrastructureConfig(decoder runtime.Decoder, infra *runtime.RawExtension) (*apiskubevirt.InfrastructureConfig, error) {
+	infraConfig := &apiskubevirt.InfrastructureConfig{}
 	if err := util.Decode(decoder, infra.Raw, infraConfig); err != nil {
 		return nil, err
 	}
@@ -52,8 +52,8 @@ func DecodeInfrastructureConfig(decoder runtime.Decoder, infra *runtime.RawExten
 }
 
 // DecodeCloudProfileConfig decodes the `CloudProfileConfig` from the given `RawExtension`.
-func DecodeCloudProfileConfig(decoder runtime.Decoder, config *runtime.RawExtension) (*kubevirt.CloudProfileConfig, error) {
-	cloudProfileConfig := &kubevirt.CloudProfileConfig{}
+func DecodeCloudProfileConfig(decoder runtime.Decoder, config *runtime.RawExtension) (*apiskubevirt.CloudProfileConfig, error) {
+	cloudProfileConfig := &apiskubevirt.CloudProfileConfig{}
 	if err := util.Decode(decoder, config.Raw, cloudProfileConfig); err != nil {
 		return nil, err
 	}

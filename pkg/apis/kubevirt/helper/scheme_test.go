@@ -15,7 +15,7 @@
 package helper_test
 
 import (
-	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
+	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/helper"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/install"
 
@@ -34,7 +34,7 @@ var _ = Describe("Helper (decode)", func() {
 		s                  *runtime.Scheme
 		ctx                common.ClientContext
 		cluster            *controller.Cluster
-		cloudProfileConfig *kubevirt.CloudProfileConfig
+		cloudProfileConfig *apiskubevirt.CloudProfileConfig
 	)
 
 	BeforeEach(func() {
@@ -75,11 +75,11 @@ machineImages:
 			},
 		}
 
-		cloudProfileConfig = &kubevirt.CloudProfileConfig{
-			MachineImages: []kubevirt.MachineImages{
+		cloudProfileConfig = &apiskubevirt.CloudProfileConfig{
+			MachineImages: []apiskubevirt.MachineImages{
 				{
 					Name: "ubuntu",
-					Versions: []kubevirt.MachineImageVersion{
+					Versions: []apiskubevirt.MachineImageVersion{
 						{
 							Version:   "16.04",
 							SourceURL: "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img",

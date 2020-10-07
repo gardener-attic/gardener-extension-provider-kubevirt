@@ -20,7 +20,7 @@ import (
 
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/admission"
 	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
-	kubevirtvalidation "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/validation"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/validation"
 
 	extensionswebhook "github.com/gardener/gardener/extensions/pkg/webhook"
 	"github.com/gardener/gardener/pkg/apis/core"
@@ -107,12 +107,12 @@ func (s *shoot) validateContext(valContext *validationContext) field.ErrorList {
 		allErrors = field.ErrorList{}
 	)
 
-	allErrors = append(allErrors, kubevirtvalidation.ValidateNetworking(valContext.shoot.Spec.Networking, networkPath)...)
-	allErrors = append(allErrors, kubevirtvalidation.ValidateInfrastructureConfig(valContext.infrastructureConfig, infrastructureConfigPath)...)
-	allErrors = append(allErrors, kubevirtvalidation.ValidateControlPlaneConfig(valContext.controlPlaneConfig, controlPlaneConfigPath)...)
-	allErrors = append(allErrors, kubevirtvalidation.ValidateWorkers(valContext.shoot.Spec.Provider.Workers, workersPath)...)
+	allErrors = append(allErrors, validation.ValidateNetworking(valContext.shoot.Spec.Networking, networkPath)...)
+	allErrors = append(allErrors, validation.ValidateInfrastructureConfig(valContext.infrastructureConfig, infrastructureConfigPath)...)
+	allErrors = append(allErrors, validation.ValidateControlPlaneConfig(valContext.controlPlaneConfig, controlPlaneConfigPath)...)
+	allErrors = append(allErrors, validation.ValidateWorkers(valContext.shoot.Spec.Provider.Workers, workersPath)...)
 	for i, workerConfig := range valContext.workerConfigs {
-		allErrors = append(allErrors, kubevirtvalidation.ValidateWorkerConfig(workerConfig, workerConfigPath(i))...)
+		allErrors = append(allErrors, validation.ValidateWorkerConfig(workerConfig, workerConfigPath(i))...)
 	}
 
 	return allErrors
@@ -149,19 +149,19 @@ func (s *shoot) validateUpdate(ctx context.Context, oldShoot, shoot *core.Shoot)
 	)
 
 	if !reflect.DeepEqual(oldInfrastructureConfig, currentInfrastructureConfig) {
-		allErrors = append(allErrors, kubevirtvalidation.ValidateInfrastructureConfigUpdate(oldInfrastructureConfig, currentInfrastructureConfig, infrastructureConfigPath)...)
+		allErrors = append(allErrors, validation.ValidateInfrastructureConfigUpdate(oldInfrastructureConfig, currentInfrastructureConfig, infrastructureConfigPath)...)
 	}
 
 	if !reflect.DeepEqual(oldControlPlaneConfig, currentControlPlaneConfig) {
-		allErrors = append(allErrors, kubevirtvalidation.ValidateControlPlaneConfigUpdate(oldControlPlaneConfig, currentControlPlaneConfig, controlPlaneConfigPath)...)
+		allErrors = append(allErrors, validation.ValidateControlPlaneConfigUpdate(oldControlPlaneConfig, currentControlPlaneConfig, controlPlaneConfigPath)...)
 	}
 
-	allErrors = append(allErrors, kubevirtvalidation.ValidateWorkersUpdate(oldValContext.shoot.Spec.Provider.Workers, currentValContext.shoot.Spec.Provider.Workers, workersPath)...)
+	allErrors = append(allErrors, validation.ValidateWorkersUpdate(oldValContext.shoot.Spec.Provider.Workers, currentValContext.shoot.Spec.Provider.Workers, workersPath)...)
 
 	for i, currentWorkerConfig := range currentValContext.workerConfigs {
 		for j, oldWorkerConfig := range oldValContext.workerConfigs {
 			if shoot.Spec.Provider.Workers[i].Name == oldShoot.Spec.Provider.Workers[j].Name && !reflect.DeepEqual(oldWorkerConfig, currentWorkerConfig) {
-				allErrors = append(allErrors, kubevirtvalidation.ValidateWorkerConfigUpdate(currentWorkerConfig, oldWorkerConfig, workerConfigPath(i))...)
+				allErrors = append(allErrors, validation.ValidateWorkerConfigUpdate(currentWorkerConfig, oldWorkerConfig, workerConfigPath(i))...)
 			}
 		}
 	}
@@ -244,5 +244,5 @@ func (s *shoot) validateShootSecret(ctx context.Context, shoot *core.Shoot) erro
 		return errors.Wrapf(err, "could not find secret %q", secretKey.String())
 	}
 
-	return kubevirtvalidation.ValidateCloudProviderSecret(secret)
+	return validation.ValidateCloudProviderSecret(secret)
 }

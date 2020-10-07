@@ -19,7 +19,7 @@ import (
 	"fmt"
 
 	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
-	apiskubevirthelper "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/helper"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/helper"
 	kubevirtv1alpha1 "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/v1alpha1"
 
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
@@ -58,7 +58,7 @@ func (w *workerDelegate) GetMachineImages(ctx context.Context) (runtime.Object, 
 
 func (w *workerDelegate) getMachineImageURL(name, version string) (string, error) {
 	if w.cloudProfileConfig != nil {
-		sourceURL, err := apiskubevirthelper.FindImage(w.cloudProfileConfig.MachineImages, name, version)
+		sourceURL, err := helper.FindImage(w.cloudProfileConfig.MachineImages, name, version)
 		if err == nil {
 			return sourceURL, nil
 		}
@@ -71,7 +71,7 @@ func (w *workerDelegate) getMachineImageURL(name, version string) (string, error
 			return "", errors.Wrapf(err, "could not decode worker status of worker '%s'", kutil.ObjectName(w.worker))
 		}
 
-		machineImage, err := apiskubevirthelper.FindMachineImage(workerStatus.MachineImages, name, version)
+		machineImage, err := helper.FindMachineImage(workerStatus.MachineImages, name, version)
 		if err != nil {
 			return "", errorMachineImageNotFound(name, version)
 		}
@@ -87,7 +87,7 @@ func errorMachineImageNotFound(name, version string) error {
 }
 
 func appendMachineImage(machineImages []apiskubevirt.MachineImage, machineImage apiskubevirt.MachineImage) []apiskubevirt.MachineImage {
-	if _, err := apiskubevirthelper.FindMachineImage(machineImages, machineImage.Name, machineImage.Version); err != nil {
+	if _, err := helper.FindMachineImage(machineImages, machineImage.Name, machineImage.Version); err != nil {
 		return append(machineImages, machineImage)
 	}
 	return machineImages

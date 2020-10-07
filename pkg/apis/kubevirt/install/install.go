@@ -15,8 +15,8 @@
 package install
 
 import (
-	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
-	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/v1alpha1"
+	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
+	kubevirtv1alpha1 "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -24,8 +24,8 @@ import (
 
 var (
 	schemeBuilder = runtime.NewSchemeBuilder(
-		v1alpha1.AddToScheme,
-		kubevirt.AddToScheme,
+		kubevirtv1alpha1.AddToScheme,
+		apiskubevirt.AddToScheme,
 		setVersionPriority,
 	)
 
@@ -34,7 +34,7 @@ var (
 )
 
 func setVersionPriority(scheme *runtime.Scheme) error {
-	return scheme.SetVersionPriority(v1alpha1.SchemeGroupVersion)
+	return scheme.SetVersionPriority(kubevirtv1alpha1.SchemeGroupVersion)
 }
 
 // Install installs all APIs in the scheme.
