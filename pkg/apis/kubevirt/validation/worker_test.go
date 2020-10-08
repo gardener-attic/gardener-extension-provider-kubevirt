@@ -19,7 +19,11 @@ import (
 	. "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/validation"
 
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
+	gomegatypes "github.com/onsi/gomega/types"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
@@ -27,22 +31,51 @@ var _ = Describe("WorkerConfig validation", func() {
 	var (
 		nilPath *field.Path
 
-		controlPlane *apiskubevirt.WorkerConfig
+		config *apiskubevirt.WorkerConfig
 	)
 
 	BeforeEach(func() {
-		controlPlane = &apiskubevirt.WorkerConfig{}
+		config = &apiskubevirt.WorkerConfig{}
 	})
 
 	Describe("#ValidateWorkerConfig", func() {
-		It("should return no errors for a valid configuration", func() {
-			Expect(ValidateWorkerConfig(controlPlane, nilPath)).To(BeEmpty())
-		})
-	})
 
-	Describe("#ValidateWorkerConfigUpdate", func() {
-		It("should return no errors for an unchanged config", func() {
-			Expect(ValidateWorkerConfigUpdate(controlPlane, controlPlane, nilPath)).To(BeEmpty())
-		})
+		DescribeTable("#ValidateDNS",
+			func(dnsPolicy corev1.DNSPolicy, dnsConfig *corev1.PodDNSConfig, matcher gomegatypes.GomegaMatcher) {
+				config.DNSPolicy = dnsPolicy
+				config.DNSConfig = dnsConfig
+				err := ValidateWorkerConfig(config, nilPath)
+
+				Expect(err).To(matcher)
+			},
+			Entry("should return error when invalid DNS is set",
+				corev1.DNSPolicy("invalid-policy"), nil, ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":  Equal(field.ErrorTypeInvalid),
+					"Field": Equal("dnsPolicy"),
+				}))),
+			),
+			Entry("should return error when dnsConfig is empty with 'None' dnsPolicy",
+				corev1.DNSNone, nil, ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":  Equal(field.ErrorTypeRequired),
+					"Field": Equal("dnsConfig"),
+				}))),
+			),
+			Entry("should return error when dnsConfig.nameservers is empty with 'None' dnsPolicy",
+				corev1.DNSNone, &corev1.PodDNSConfig{}, ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":  Equal(field.ErrorTypeRequired),
+					"Field": Equal("dnsConfig.nameservers"),
+				}))),
+			),
+			Entry("should not return error when dnsConfig.nameservers is set with 'None' dnsPolicy",
+				corev1.DNSNone, &corev1.PodDNSConfig{Nameservers: []string{"8.8.8.8"}}, Equal(field.ErrorList{}),
+			),
+			Entry("should not return error with appropriate dnsPolicy",
+				corev1.DNSDefault, nil, Equal(field.ErrorList{}),
+			),
+			Entry("should not return error with appropriate dnsPolicy and dnsConfig",
+				corev1.DNSDefault, &corev1.PodDNSConfig{Nameservers: []string{"8.8.8.8"}}, Equal(field.ErrorList{}),
+			),
+		)
+
 	})
 })
