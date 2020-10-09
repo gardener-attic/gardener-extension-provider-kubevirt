@@ -67,6 +67,12 @@ var _ = Describe("Shoot validation", func() {
 						Type:       pointer.StringPtr("Volume"),
 						VolumeSize: "30G",
 					},
+					DataVolumes: []core.DataVolume{
+						{
+							Type:       pointer.StringPtr("DataVolume"),
+							VolumeSize: "20G",
+						},
+					},
 					Minimum: 1,
 					Maximum: 2,
 					Zones:   []string{"1", "2"},
@@ -90,6 +96,45 @@ var _ = Describe("Shoot validation", func() {
 				errorList := ValidateWorkers(workers, nilPath)
 
 				Expect(errorList).To(BeEmpty())
+			})
+
+			It("should forbid because worker does not specify a volume", func() {
+				workers[0].Volume = nil
+
+				errorList := ValidateWorkers(workers, nilPath)
+
+				Expect(errorList).To(ConsistOf(
+					PointTo(MatchFields(IgnoreExtras, Fields{
+						"Type":  Equal(field.ErrorTypeRequired),
+						"Field": Equal("[0].volume"),
+					})),
+				))
+			})
+
+			It("should forbid because worker volume does not have a type", func() {
+				workers[0].Volume.Type = nil
+
+				errorList := ValidateWorkers(workers, nilPath)
+
+				Expect(errorList).To(ConsistOf(
+					PointTo(MatchFields(IgnoreExtras, Fields{
+						"Type":  Equal(field.ErrorTypeRequired),
+						"Field": Equal("[0].volume.type"),
+					})),
+				))
+			})
+
+			It("should forbid because worker data volume does not have a type", func() {
+				workers[0].DataVolumes[0].Type = nil
+
+				errorList := ValidateWorkers(workers, nilPath)
+
+				Expect(errorList).To(ConsistOf(
+					PointTo(MatchFields(IgnoreExtras, Fields{
+						"Type":  Equal(field.ErrorTypeRequired),
+						"Field": Equal("[0].dataVolumes[0].type"),
+					})),
+				))
 			})
 
 			It("should forbid because worker does not specify a zone", func() {

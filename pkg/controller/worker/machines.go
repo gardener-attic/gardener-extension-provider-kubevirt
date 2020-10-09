@@ -31,7 +31,7 @@ import (
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	machinev1alpha1 "github.com/gardener/machine-controller-manager/pkg/apis/machine/v1alpha1"
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -65,7 +65,7 @@ func (w *workerDelegate) DeployMachineClasses(ctx context.Context) error {
 		return errors.Wrap(err, "could not apply machine-class chart")
 	}
 
-	if err := w.allocateDataVolumes(ctx); err != nil {
+	if err := w.createOrUpdateMachineClassVolumes(ctx); err != nil {
 		return err
 	}
 
@@ -84,12 +84,19 @@ func (w *workerDelegate) GenerateMachineDeployments(ctx context.Context) (worker
 
 func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 	var (
-		machineDeployments = worker.MachineDeployments{}
-		machineClasses     []map[string]interface{}
-		machineImages      []apiskubevirt.MachineImage
+		machineDeployments  = worker.MachineDeployments{}
+		machineClasses      []map[string]interface{}
+		machineImages       []apiskubevirt.MachineImage
+		machineClassVolumes = make(map[string]*cdicorev1alpha1.DataVolumeSpec)
 	)
 
 	kubeconfig, err := kubevirt.GetKubeConfig(ctx, w.Client(), w.worker.Spec.SecretRef)
+	if err != nil {
+		return err
+	}
+
+	// Get a client and a namespace for the provider cluster from the kubeconfig
+	_, namespace, err := w.clientFactory.GetClient(kubeconfig)
 	if err != nil {
 		return err
 	}
@@ -147,20 +154,47 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 		})
 
 		resourceRequirements := &kubevirtv1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				v1.ResourceCPU:    machineType.CPU,
-				v1.ResourceMemory: machineType.Memory,
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    machineType.CPU,
+				corev1.ResourceMemory: machineType.Memory,
 			},
 			OvercommitGuestOverhead: workerConfig.OvercommitGuestOverhead,
 		}
 
 		if mt := w.getMachineTypesExtension(machineType.Name); mt != nil {
 			if mt.Limits != nil {
-				resourceRequirements.Limits = v1.ResourceList{
-					v1.ResourceCPU:    mt.Limits.CPU,
-					v1.ResourceMemory: mt.Limits.Memory,
+				resourceRequirements.Limits = corev1.ResourceList{
+					corev1.ResourceCPU:    mt.Limits.CPU,
+					corev1.ResourceMemory: mt.Limits.Memory,
 				}
 			}
+		}
+
+		// Get root volume storage class name and size
+		var rootVolumeClassName string
+		var rootVolumeSize resource.Quantity
+		switch {
+		case pool.Volume != nil:
+			rootVolumeClassName, rootVolumeSize, err = w.getStorageClassNameAndSize(*pool.Volume.Type, pool.Volume.Size)
+			if err != nil {
+				return err
+			}
+		case machineType.Storage != nil:
+			rootVolumeClassName, rootVolumeSize = machineType.Storage.Class, machineType.Storage.StorageSize
+		default:
+			return fmt.Errorf("missing root volume parameters")
+		}
+
+		// Build additional volumes
+		var additionalVolumes []map[string]interface{}
+		for _, volume := range pool.DataVolumes {
+			className, size, err := w.getStorageClassNameAndSize(*volume.Type, volume.Size)
+			if err != nil {
+				return err
+			}
+			additionalVolumes = append(additionalVolumes, map[string]interface{}{
+				"dataVolume": buildDataVolumeSpecWithBlankSource(className, size),
+			})
 		}
 
 		for zoneIndex, zone := range pool.Zones {
@@ -169,16 +203,24 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			deploymentName := fmt.Sprintf("%s-%s-z%d", w.worker.Namespace, pool.Name, zoneIndex+1)
 			className := fmt.Sprintf("%s-%s", deploymentName, workerPoolHash)
 
+			// Build root volume and machine class volume
+			var rootVolume *cdicorev1alpha1.DataVolumeSpec
+			if !workerConfig.DisablePreAllocatedDataVolumes {
+				rootVolume = buildDataVolumeSpecWithPVCSource(rootVolumeClassName, rootVolumeSize, namespace, className)
+				machineClassVolumes[className] = buildDataVolumeSpecWithHTTPSource(rootVolumeClassName, rootVolumeSize, imageSourceURL)
+			} else {
+				rootVolume = buildDataVolumeSpecWithHTTPSource(rootVolumeClassName, rootVolumeSize, imageSourceURL)
+			}
+
 			machineClasses = append(machineClasses, map[string]interface{}{
-				"name":             className,
-				"resources":        resourceRequirements,
-				"storageClassName": machineType.Storage.Class,
-				"pvcSize":          machineType.Storage.StorageSize,
-				"sourceURL":        imageSourceURL,
-				"sshKeys":          []string{string(w.worker.Spec.SSHPublicKey)},
-				"networks":         infrastructureStatusV1alpha1.Networks,
-				"region":           w.worker.Spec.Region,
-				"zone":             zone,
+				"name":              className,
+				"resources":         resourceRequirements,
+				"rootVolume":        rootVolume,
+				"additionalVolumes": additionalVolumes,
+				"sshKeys":           []string{string(w.worker.Spec.SSHPublicKey)},
+				"networks":          infrastructureStatusV1alpha1.Networks,
+				"region":            w.worker.Spec.Region,
+				"zone":              zone,
 				"tags": map[string]string{
 					"mcm.gardener.cloud/cluster":      w.worker.Namespace,
 					"mcm.gardener.cloud/role":         "node",
@@ -188,11 +230,10 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 					"cloudConfig": string(pool.UserData),
 					"kubeconfig":  string(kubeconfig),
 				},
-				"dnsPolicy":                      workerConfig.DNSPolicy,
-				"dnsConfig":                      workerConfig.DNSConfig,
-				"disablePreAllocatedDataVolumes": workerConfig.DisablePreAllocatedDataVolumes,
-				"memory":                         workerConfig.Memory,
-				"cpu":                            workerConfig.CPU,
+				"dnsPolicy": workerConfig.DNSPolicy,
+				"dnsConfig": workerConfig.DNSConfig,
+				"memory":    workerConfig.Memory,
+				"cpu":       workerConfig.CPU,
 			})
 
 			machineDeployments = append(machineDeployments, worker.MachineDeployment{
@@ -214,8 +255,21 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 	w.machineDeployments = machineDeployments
 	w.machineClasses = machineClasses
 	w.machineImages = machineImages
+	w.machineClassVolumes = machineClassVolumes
 
 	return nil
+}
+
+func (w *workerDelegate) getStorageClassNameAndSize(volumeTypeName, volumeSize string) (string, resource.Quantity, error) {
+	volumeType, err := w.getVolumeType(volumeTypeName)
+	if err != nil {
+		return "", resource.Quantity{}, err
+	}
+	storageSize, err := resource.ParseQuantity(volumeSize)
+	if err != nil {
+		return "", resource.Quantity{}, err
+	}
+	return volumeType.Class, storageSize, nil
 }
 
 func (w *workerDelegate) getMachineType(name string) (*corev1beta1.MachineType, error) {
@@ -227,47 +281,92 @@ func (w *workerDelegate) getMachineType(name string) (*corev1beta1.MachineType, 
 	return nil, fmt.Errorf("machine type %s not found in cloud profile spec", name)
 }
 
-func (w *workerDelegate) allocateDataVolumes(ctx context.Context) error {
-	dataVolumeLabels := map[string]string{
+func (w *workerDelegate) getVolumeType(name string) (*corev1beta1.VolumeType, error) {
+	for _, vt := range w.cluster.CloudProfile.Spec.VolumeTypes {
+		if vt.Name == name {
+			return &vt, nil
+		}
+	}
+	return nil, fmt.Errorf("volume type %s not found in cloud profile spec", name)
+}
+
+func (w *workerDelegate) createOrUpdateMachineClassVolumes(ctx context.Context) error {
+	labels := map[string]string{
 		clusterLabel: w.worker.Namespace,
 	}
 
 	kubeconfig, err := kubevirt.GetKubeConfig(ctx, w.Client(), w.worker.Spec.SecretRef)
 	if err != nil {
-		return errors.Wrap(err, "could not get the kubeconfig of the kubevirt cluster")
+		return errors.Wrap(err, "could not get kubeconfig of the kubevirt cluster")
 	}
 
-	for _, machineClass := range w.machineClasses {
-		if !machineClass["disablePreAllocatedDataVolumes"].(bool) {
-			var (
-				storageClassName = pointer.StringPtr(machineClass["storageClassName"].(string))
-				pvcSize          = v1.ResourceList{v1.ResourceStorage: machineClass["pvcSize"].(resource.Quantity)}
-				sourceUrl        = machineClass["sourceURL"].(string)
-				machineClassName = machineClass["name"].(string)
-			)
-
-			dataVolumeSpec := cdicorev1alpha1.DataVolumeSpec{
-				PVC: &v1.PersistentVolumeClaimSpec{
-					StorageClassName: storageClassName,
-					AccessModes: []v1.PersistentVolumeAccessMode{
-						"ReadWriteOnce",
-					},
-					Resources: v1.ResourceRequirements{
-						Requests: pvcSize,
-					},
-				},
-				Source: cdicorev1alpha1.DataVolumeSource{
-					HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
-						URL: sourceUrl,
-					},
-				},
-			}
-
-			if err := w.dataVolumeManager.CreateOrUpdateDataVolume(ctx, kubeconfig, machineClassName, dataVolumeLabels, dataVolumeSpec); err != nil {
-				return errors.Wrapf(err, "could not create data volume for machine class %s", machineClassName)
-			}
+	for name, dataVolumeSpec := range w.machineClassVolumes {
+		if err := w.dataVolumeManager.CreateOrUpdateDataVolume(ctx, kubeconfig, name, labels, *dataVolumeSpec); err != nil {
+			return errors.Wrapf(err, "could not create data volume for machine class %s", name)
 		}
 	}
 
 	return nil
+}
+
+func buildDataVolumeSpecWithPVCSource(storageClassName string, storageSize resource.Quantity, namespace, name string) *cdicorev1alpha1.DataVolumeSpec {
+	return &cdicorev1alpha1.DataVolumeSpec{
+		PVC: &corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{
+				"ReadWriteOnce",
+			},
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: storageSize,
+				},
+			},
+			StorageClassName: pointer.StringPtr(storageClassName),
+		},
+		Source: cdicorev1alpha1.DataVolumeSource{
+			PVC: &cdicorev1alpha1.DataVolumeSourcePVC{
+				Namespace: namespace,
+				Name:      name,
+			},
+		},
+	}
+}
+
+func buildDataVolumeSpecWithHTTPSource(storageClassName string, storageSize resource.Quantity, url string) *cdicorev1alpha1.DataVolumeSpec {
+	return &cdicorev1alpha1.DataVolumeSpec{
+		PVC: &corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{
+				"ReadWriteOnce",
+			},
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: storageSize,
+				},
+			},
+			StorageClassName: pointer.StringPtr(storageClassName),
+		},
+		Source: cdicorev1alpha1.DataVolumeSource{
+			HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
+				URL: url,
+			},
+		},
+	}
+}
+
+func buildDataVolumeSpecWithBlankSource(storageClassName string, storageSize resource.Quantity) *cdicorev1alpha1.DataVolumeSpec {
+	return &cdicorev1alpha1.DataVolumeSpec{
+		PVC: &corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{
+				"ReadWriteOnce",
+			},
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: storageSize,
+				},
+			},
+			StorageClassName: pointer.StringPtr(storageClassName),
+		},
+		Source: cdicorev1alpha1.DataVolumeSource{
+			Blank: &cdicorev1alpha1.DataVolumeBlankImage{},
+		},
+	}
 }

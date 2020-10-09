@@ -57,11 +57,9 @@ spec:
     cpu: "1"
     gpu: "0"
     memory: 4Gi
-    storage:
-      class: default
-      type: DataVolume
-      size: 20Gi
-    usable: true
+  volumeTypes:
+  - name: default
+    class: default
   regions:
   - name: europe-west1
     zones:

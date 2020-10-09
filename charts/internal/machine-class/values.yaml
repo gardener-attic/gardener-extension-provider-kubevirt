@@ -8,9 +8,28 @@ machineClasses:
       cpu: "300m"
       memory: "4Gi"
     overcommitGuestOverhead: true
-  storageClassName: standard
-  pvcSize: "10Gi"
-  sourceURL: source-image-url
+  rootVolume:
+    pvc:
+      storageClassName: standard
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+    source:
+      http:
+        url: source-image-url
+  additionalVolumes:
+  - dataVolume:
+      pvc:
+        storageClassName: standard
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+      source:
+        blank: {}
   sshKeys:
   - "ssh-rsa AAAAB3..."
   networks:

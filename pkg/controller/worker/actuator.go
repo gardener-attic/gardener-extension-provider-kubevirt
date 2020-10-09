@@ -29,6 +29,7 @@ import (
 	gardener "github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/go-logr/logr"
 	"k8s.io/client-go/kubernetes"
+	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -70,6 +71,7 @@ func (a *actuator) InjectClient(client client.Client) error {
 
 type delegateFactory struct {
 	logger            logr.Logger
+	clientFactory     kubevirt.ClientFactory
 	dataVolumeManager kubevirt.DataVolumeManager
 	common.RESTConfigContext
 }
@@ -97,6 +99,7 @@ func (d *delegateFactory) WorkerDelegate(ctx context.Context, worker *extensions
 
 		worker,
 		cluster,
+		d.clientFactory,
 		d.dataVolumeManager,
 	)
 }
@@ -111,10 +114,12 @@ type workerDelegate struct {
 	cluster            *extensionscontroller.Cluster
 	worker             *extensionsv1alpha1.Worker
 
-	machineClasses     []map[string]interface{}
-	machineDeployments worker.MachineDeployments
-	machineImages      []apiskubevirt.MachineImage
+	machineClasses      []map[string]interface{}
+	machineDeployments  worker.MachineDeployments
+	machineImages       []apiskubevirt.MachineImage
+	machineClassVolumes map[string]*cdicorev1alpha1.DataVolumeSpec
 
+	clientFactory     kubevirt.ClientFactory
 	dataVolumeManager kubevirt.DataVolumeManager
 }
 
@@ -127,6 +132,7 @@ func NewWorkerDelegate(
 
 	worker *extensionsv1alpha1.Worker,
 	cluster *extensionscontroller.Cluster,
+	clientFactory kubevirt.ClientFactory,
 	dataVolumeManager kubevirt.DataVolumeManager,
 ) (genericactuator.WorkerDelegate, error) {
 	var cloudProfileConfig *apiskubevirt.CloudProfileConfig
@@ -147,6 +153,7 @@ func NewWorkerDelegate(
 		cloudProfileConfig: cloudProfileConfig,
 		cluster:            cluster,
 		worker:             worker,
+		clientFactory:      clientFactory,
 		dataVolumeManager:  dataVolumeManager,
 	}, nil
 }

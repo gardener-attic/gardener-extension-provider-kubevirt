@@ -107,7 +107,28 @@ The `cloudControllerManager.featureGates` contains a map of explicitly enabled o
 
 ## `WorkerConfig`
 
-The KubeVirt extension does not currently support additional data volumes or encryption for volumes. The configuration of the single root disk can only be specified in the `CloudProfile` resource.
+The KubeVirt extension supports specifying additional data volumes per machine in the worker pool. For each data volume, you must specify a name and a type. 
+
+Below is an example `Shoot` resource snippet with root volume and data volumes: 
+
+```yaml
+spec:
+  provider:
+    workers:
+    - name: cpu-worker
+      ...
+      volume:
+        type: default
+        size: 20Gi
+      dataVolumes:
+      - name: volume-1
+        type: default
+        size: 10Gi
+```
+
+**Note:** The additional data volumes will be attached as blank disks to the KubeVirt VMs. These disks must be formatted and mounted manually to the VM before they can be used. 
+
+The KubeVirt extension does not currently support encryption for volumes. 
 
 Additionally, it is possible to specify additional KubeVirt-specific options for configuring the worker pools. They can be specified in `.spec.provider.workers[].providerConfig` and are evaluated by the KubeVirt worker controller when it reconciles the shoot machines. 
 
@@ -128,6 +149,7 @@ dnsConfig:
 # Disable using pre-allocated data volumes. Defaults to 'false'.
 disablePreAllocatedDataVolumes: true
 # cpu allows to set the CPU topology of the VMI
+# See https://kubevirt.io/api-reference/master/definitions.html#_v1_cpu
 cpu:
   # number of cores inside the VMI
   cores: 1
@@ -148,6 +170,7 @@ cpu:
   # isolateEmulatorThread requests one more dedicated pCPU to be allocated for the VMI to place the emulator thread on it.
   isolateEmulatorThread: false
 # memory configuration for KubeVirt VMs, allows to set 'hugepages' and 'guest' settings. 
+# See https://kubevirt.io/api-reference/master/definitions.html#_v1_memory
 memory:
   # hugepages requires appropriate feature gate to be enabled, take a look at the following links for more details:
   # * k8s - https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/
@@ -166,8 +189,9 @@ overcommitGuestOverhead: true
 
 Currently, these KubeVirt-specific options may include:
 
-* The DNS policy and DNS configuration for the KubeVirt VMs used as shoot cluster nodes. For more information, see [DNS for Services and Pods](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/).
-* Whether to use *pre-allocated data volumes* with KubeVirt VMs. With pre-allocated data volumes (the default), a data volume is created in advance for each machine class / worker pool, the OS image is imported into this volume only once, and actual KubeVirt VM data volumes are cloned from this data volume. Typically, this significantly speeds up the data volume creation process. You can disable this feature by setting the `disablePreAllocatedDataVolumes` option to `true`.
+* The DNS policy and DNS configuration of the KubeVirt VMs. For more information, see [DNS for Services and Pods](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/).
+* Whether to use *pre-allocated data volumes* with KubeVirt VMs. With pre-allocated data volumes (the default), a data volume is created in advance for each machine class, the OS image is imported into this volume only once, and actual KubeVirt VM data volumes are cloned from this data volume. Typically, this significantly speeds up the data volume creation process. You can disable this feature by setting the `disablePreAllocatedDataVolumes` option to `true`.
+* The CPU topology and memory configuration of the KubVirt VMs. For more information, see [CPU.v1](https://kubevirt.io/api-reference/master/definitions.html#_v1_cpu) and [Memory.v1](https://kubevirt.io/api-reference/master/definitions.html#_v1_memory). 
 
 ## Region and Zone Support
 
@@ -222,26 +246,7 @@ spec:
 #     networks:
 #       tenantNetworks:
 #       - name: network-1
-#         config: |
-#           {
-#             "cniVersion": "0.4.0",
-#             "name": "bridge-firewall",
-#             "plugins": [
-#               {
-#                 "type": "bridge",
-#                 "isGateway": true,
-#                 "isDefaultGateway": true,
-#                 "ipMasq": true,
-#                 "ipam": {
-#                   "type": "host-local",
-#                   "subnet": "10.100.0.0/16"
-#                 }
-#               },
-#               {
-#                 "type": "firewall"
-#               }
-#             ]
-#           }
+#         config: "{...}"
 #         default: true
 #   controlPlaneConfig:
 #     apiVersion: kubevirt.provider.extensions.gardener.cloud/v1alpha1
@@ -256,13 +261,16 @@ spec:
         image:
           name: ubuntu
           version: "18.04"
+      volume:
+        type: default
+        size: 20Gi
+      dataVolumes:
+      - name: volume-1
+        type: default
+        size: 10Gi
 #     providerConfig:
 #       apiVersion: kubevirt.provider.extensions.gardener.cloud/v1alpha1
 #       kind: WorkerConfig
-#       dnsPolicy: ClusterFirst
-#       dnsConfig:
-#         nameservers:
-#         - 8.8.8.8
 #       disablePreAllocatedDataVolumes: true
       minimum: 1
       maximum: 2
