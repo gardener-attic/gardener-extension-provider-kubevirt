@@ -54,13 +54,15 @@ func AddToManagerWithOptions(mgr manager.Manager, opts AddOptions) error {
 		return err
 	}
 
-	dataVolumeManager, err := kubevirt.NewDefaultDataVolumeManager(kubevirt.ClientFactoryFunc(kubevirt.GetClient))
+	clientFactory := kubevirt.ClientFactoryFunc(kubevirt.GetClient)
+	dataVolumeManager, err := kubevirt.NewDefaultDataVolumeManager(clientFactory)
 	if err != nil {
 		return errors.Wrap(err, "could not create kubevirt data volume manager")
 	}
 
 	delegateFactory := &delegateFactory{
 		logger:            workerLogger,
+		clientFactory:     clientFactory,
 		dataVolumeManager: dataVolumeManager,
 	}
 

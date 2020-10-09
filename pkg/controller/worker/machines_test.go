@@ -74,12 +74,12 @@ var _ = Describe("Machines", func() {
 		ctrl.Finish()
 	})
 
-	mockProviderClient := func(kubeconfig []byte) (client.Client, string, error) {
-		return providerClient, "", nil
-	}
+	mockClientFactory := kubevirt.ClientFactoryFunc(func(kubeconfig []byte) (client.Client, string, error) {
+		return providerClient, "default", nil
+	})
 
 	Context("with workerDelegate", func() {
-		workerDelegate, _ := NewWorkerDelegate(common.NewClientContext(nil, nil, nil), nil, "", nil, nil, nil)
+		workerDelegate, _ := NewWorkerDelegate(common.NewClientContext(nil, nil, nil), nil, "", nil, nil, nil, nil)
 
 		Describe("#MachineClassKind", func() {
 			It("should return the correct kind of the machine class", func() {
@@ -210,6 +210,16 @@ var _ = Describe("Machines", func() {
 								Name:    machineImageName,
 								Version: machineImageVersion,
 							},
+							Volume: &extensionsv1alpha1.Volume{
+								Type: pointer.StringPtr("standard"),
+								Size: "8Gi",
+							},
+							DataVolumes: []extensionsv1alpha1.DataVolume{
+								{
+									Type: pointer.StringPtr("standard"),
+									Size: "10Gi",
+								},
+							},
 							UserData: userData,
 							Zones:    []string{"local-3"},
 						},
@@ -219,7 +229,7 @@ var _ = Describe("Machines", func() {
 			}
 
 			It("should return a data volume manager", func() {
-				dataVolumeManager, err = kubevirt.NewDefaultDataVolumeManager(kubevirt.ClientFactoryFunc(mockProviderClient))
+				dataVolumeManager, err = kubevirt.NewDefaultDataVolumeManager(mockClientFactory)
 				Expect(err).NotTo(HaveOccurred())
 			})
 
@@ -233,7 +243,7 @@ var _ = Describe("Machines", func() {
 
 				workerPoolHash1, _ = worker.WorkerPoolHash(w.Spec.Pools[0], cluster, networkName, "true", networkSHA)
 				workerPoolHash2, _ = worker.WorkerPoolHash(w.Spec.Pools[1], cluster, networkName, "true", networkSHA)
-				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, dataVolumeManager)
+				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, mockClientFactory, dataVolumeManager)
 			})
 
 			It("should return the expected machine deployments", func() {
@@ -248,8 +258,6 @@ var _ = Describe("Machines", func() {
 				machineClassName3 := fmt.Sprintf("%s-%s", machineDeploymentName3, workerPoolHash2)
 
 				machineClassTemplate := map[string]interface{}{
-					"storageClassName": "standard",
-					"sourceURL":        ubuntuSourceURL,
 					"sshKeys": []string{
 						string(sshPublicKey),
 					},
@@ -265,17 +273,11 @@ var _ = Describe("Machines", func() {
 						"cloudConfig": "user-data",
 						"kubeconfig":  kubeconfig,
 					},
-					"tags": map[string]string{
-						"mcm.gardener.cloud/cluster":      namespace,
-						"mcm.gardener.cloud/role":         "node",
-						"mcm.gardener.cloud/machineclass": machineClassName1,
-					},
 				}
 
 				machineClass1 := generateMachineClass(
 					machineClassTemplate,
 					machineClassName1,
-					"8Gi",
 					"local-1",
 					&kubevirtv1.ResourceRequirements{
 						Requests: corev1.ResourceList{
@@ -288,6 +290,25 @@ var _ = Describe("Machines", func() {
 						},
 						OvercommitGuestOverhead: true,
 					},
+					&cdicorev1alpha1.DataVolumeSpec{
+						PVC: &corev1.PersistentVolumeClaimSpec{
+							StorageClassName: pointer.StringPtr("standard"),
+							AccessModes: []corev1.PersistentVolumeAccessMode{
+								"ReadWriteOnce",
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceStorage: resource.MustParse("8Gi"),
+								},
+							},
+						},
+						Source: cdicorev1alpha1.DataVolumeSource{
+							HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
+								URL: ubuntuSourceURL,
+							},
+						},
+					},
+					nil,
 					map[string]string{
 						"mcm.gardener.cloud/cluster":      namespace,
 						"mcm.gardener.cloud/role":         "node",
@@ -297,7 +318,6 @@ var _ = Describe("Machines", func() {
 					&corev1.PodDNSConfig{
 						Nameservers: []string{dnsNameserver},
 					},
-					true,
 					&kubevirtv1.Memory{
 						Hugepages: &kubevirtv1.Hugepages{
 							PageSize: "2Mi",
@@ -314,7 +334,6 @@ var _ = Describe("Machines", func() {
 				machineClass2 := generateMachineClass(
 					machineClassTemplate,
 					machineClassName2,
-					"8Gi",
 					"local-2",
 					&kubevirtv1.ResourceRequirements{
 						Requests: corev1.ResourceList{
@@ -327,6 +346,25 @@ var _ = Describe("Machines", func() {
 						},
 						OvercommitGuestOverhead: true,
 					},
+					&cdicorev1alpha1.DataVolumeSpec{
+						PVC: &corev1.PersistentVolumeClaimSpec{
+							StorageClassName: pointer.StringPtr("standard"),
+							AccessModes: []corev1.PersistentVolumeAccessMode{
+								"ReadWriteOnce",
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceStorage: resource.MustParse("8Gi"),
+								},
+							},
+						},
+						Source: cdicorev1alpha1.DataVolumeSource{
+							HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
+								URL: ubuntuSourceURL,
+							},
+						},
+					},
+					nil,
 					map[string]string{
 						"mcm.gardener.cloud/cluster":      namespace,
 						"mcm.gardener.cloud/role":         "node",
@@ -336,7 +374,6 @@ var _ = Describe("Machines", func() {
 					&corev1.PodDNSConfig{
 						Nameservers: []string{dnsNameserver},
 					},
-					true,
 					&kubevirtv1.Memory{
 						Hugepages: &kubevirtv1.Hugepages{
 							PageSize: "2Mi",
@@ -353,12 +390,50 @@ var _ = Describe("Machines", func() {
 				machineClass3 := generateMachineClass(
 					machineClassTemplate,
 					machineClassName3,
-					"8Gi",
 					"local-3",
 					&kubevirtv1.ResourceRequirements{
 						Requests: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("300m"),
 							corev1.ResourceMemory: resource.MustParse("8192Mi"),
+						},
+					},
+					&cdicorev1alpha1.DataVolumeSpec{
+						PVC: &corev1.PersistentVolumeClaimSpec{
+							AccessModes: []corev1.PersistentVolumeAccessMode{
+								"ReadWriteOnce",
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceStorage: resource.MustParse("8Gi"),
+								},
+							},
+							StorageClassName: pointer.StringPtr("standard"),
+						},
+						Source: cdicorev1alpha1.DataVolumeSource{
+							PVC: &cdicorev1alpha1.DataVolumeSourcePVC{
+								Namespace: "default",
+								Name:      machineClassName3,
+							},
+						},
+					},
+					[]map[string]interface{}{
+						{
+							"dataVolume": &cdicorev1alpha1.DataVolumeSpec{
+								PVC: &corev1.PersistentVolumeClaimSpec{
+									AccessModes: []corev1.PersistentVolumeAccessMode{
+										"ReadWriteOnce",
+									},
+									Resources: corev1.ResourceRequirements{
+										Requests: corev1.ResourceList{
+											corev1.ResourceStorage: resource.MustParse("10Gi"),
+										},
+									},
+									StorageClassName: pointer.StringPtr("standard"),
+								},
+								Source: cdicorev1alpha1.DataVolumeSource{
+									Blank: &cdicorev1alpha1.DataVolumeBlankImage{},
+								},
+							},
 						},
 					},
 					map[string]string{
@@ -368,7 +443,6 @@ var _ = Describe("Machines", func() {
 					},
 					"",
 					nil,
-					false,
 					nil,
 					nil,
 				)
@@ -481,7 +555,7 @@ var _ = Describe("Machines", func() {
 				By("creating a cluster without images")
 				cluster := createCluster(cloudProfileName, shootVersion, imagesOutOfConfig)
 
-				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, dataVolumeManager)
+				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, mockClientFactory, dataVolumeManager)
 
 				result, err := workerDelegate.GenerateMachineDeployments(context.TODO())
 				Expect(err).To(HaveOccurred())
@@ -504,7 +578,7 @@ var _ = Describe("Machines", func() {
 					NodeConditions:         testNodeConditions,
 				}
 
-				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, dataVolumeManager)
+				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, mockClientFactory, dataVolumeManager)
 
 				result, err := workerDelegate.GenerateMachineDeployments(context.TODO())
 				resultSettings := result[0].MachineConfiguration
@@ -575,9 +649,16 @@ func generateKubeVirtDataVolumes(providerClient *mockclient.MockClient) {
 		AnyTimes()
 }
 
-func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, zone string, resources *kubevirtv1.ResourceRequirements,
-	tags map[string]string, dnsPolicy corev1.DNSPolicy, dnsConfig *corev1.PodDNSConfig, disablePreAllocatedDataVolumes bool,
-	memory *kubevirtv1.Memory, cpu *kubevirtv1.CPU) map[string]interface{} {
+func generateMachineClass(
+	classTemplate map[string]interface{},
+	name, zone string,
+	resources *kubevirtv1.ResourceRequirements,
+	rootVolume *cdicorev1alpha1.DataVolumeSpec,
+	additionalVolumes []map[string]interface{},
+	tags map[string]string,
+	dnsPolicy corev1.DNSPolicy, dnsConfig *corev1.PodDNSConfig,
+	memory *kubevirtv1.Memory, cpu *kubevirtv1.CPU,
+) map[string]interface{} {
 	out := make(map[string]interface{})
 
 	for k, v := range classTemplate {
@@ -585,13 +666,13 @@ func generateMachineClass(classTemplate map[string]interface{}, name, pvcSize, z
 	}
 
 	out["name"] = name
-	out["pvcSize"] = resource.MustParse(pvcSize)
 	out["zone"] = zone
 	out["resources"] = resources
+	out["rootVolume"] = rootVolume
+	out["additionalVolumes"] = additionalVolumes
 	out["tags"] = tags
 	out["dnsPolicy"] = dnsPolicy
 	out["dnsConfig"] = dnsConfig
-	out["disablePreAllocatedDataVolumes"] = disablePreAllocatedDataVolumes
 	out["memory"] = memory
 	out["cpu"] = cpu
 
@@ -654,11 +735,12 @@ func createCluster(cloudProfileName, shootVersion string, images []kubevirtv1alp
 						Name:   "local-2",
 						Memory: resource.MustParse("8192Mi"),
 						CPU:    resource.MustParse("300m"),
-						Storage: &gardencorev1beta1.MachineTypeStorage{
-							Class:       "standard",
-							StorageSize: resource.MustParse("8Gi"),
-							Type:        "DataVolume",
-						},
+					},
+				},
+				VolumeTypes: []gardencorev1beta1.VolumeType{
+					{
+						Name:  "standard",
+						Class: "standard",
 					},
 				},
 			},
@@ -673,7 +755,7 @@ func createCluster(cloudProfileName, shootVersion string, images []kubevirtv1alp
 		},
 	}
 
-	specImages := []gardencorev1beta1.MachineImage{}
+	var specImages []gardencorev1beta1.MachineImage
 	for _, image := range images {
 		specImages = append(specImages, gardencorev1beta1.MachineImage{
 			Name: image.Name,

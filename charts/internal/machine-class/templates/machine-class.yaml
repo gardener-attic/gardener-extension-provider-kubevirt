@@ -21,16 +21,15 @@ providerSpec:
 {{- if $machineClass.resources }}
   resources:
 {{ toYaml $machineClass.resources | indent 4 }}
-{{ end }}
-{{- if $machineClass.storageClassName }}
-  storageClassName: "{{ $machineClass.storageClassName }}"
-{{ end }}
-{{- if $machineClass.pvcSize }}
-  pvcSize: "{{ $machineClass.pvcSize }}"
-{{ end }}
-{{- if $machineClass.sourceURL }}
-  sourceURL: "{{ $machineClass.sourceURL }}"
-{{ end }}
+{{- end }}
+{{- if $machineClass.rootVolume }}
+  rootVolume:
+{{ toYaml $machineClass.rootVolume | indent 4 }}
+{{- end }}
+{{- if $machineClass.additionalVolumes }}
+  additionalVolumes:
+{{ toYaml $machineClass.additionalVolumes | indent 4 }}
+{{- end }}
   sshKeys:
 {{ toYaml $machineClass.sshKeys | indent 4 }}
 {{- if $machineClass.networks }}

@@ -38,8 +38,18 @@ func ValidateWorkers(workers []core.Worker, fldPath *field.Path) field.ErrorList
 	allErrs := field.ErrorList{}
 
 	for i, worker := range workers {
-
 		workerFldPath := fldPath.Index(i)
+
+		if worker.Volume == nil {
+			allErrs = append(allErrs, field.Required(workerFldPath.Child("volume"), "must not be nil"))
+		} else {
+			allErrs = append(allErrs, validateVolume(worker.Volume, workerFldPath.Child("volume"))...)
+		}
+
+		for j, dataVolume := range worker.DataVolumes {
+			allErrs = append(allErrs, validateDataVolume(&dataVolume, workerFldPath.Child("dataVolumes").Index(j))...)
+		}
+
 		if len(worker.Zones) == 0 {
 			allErrs = append(allErrs, field.Required(workerFldPath.Child("zones"), "at least one zone must be configured"))
 			continue
@@ -59,6 +69,22 @@ func ValidateWorkers(workers []core.Worker, fldPath *field.Path) field.ErrorList
 		}
 	}
 
+	return allErrs
+}
+
+func validateVolume(vol *core.Volume, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if vol.Type == nil {
+		allErrs = append(allErrs, field.Required(fldPath.Child("type"), "must not be empty"))
+	}
+	return allErrs
+}
+
+func validateDataVolume(vol *core.DataVolume, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if vol.Type == nil {
+		allErrs = append(allErrs, field.Required(fldPath.Child("type"), "must not be empty"))
+	}
 	return allErrs
 }
 
