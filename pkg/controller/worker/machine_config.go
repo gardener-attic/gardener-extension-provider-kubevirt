@@ -16,7 +16,6 @@ package worker
 
 import (
 	"context"
-	"fmt"
 
 	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/helper"
@@ -51,7 +50,7 @@ func (w *workerDelegate) GetMachineImages(ctx context.Context) (runtime.Object, 
 	}
 
 	if err := w.Scheme().Convert(workerStatus, workerStatusV1alpha1, nil); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "could not convert WorkerStatus to v1alpha1")
 	}
 	return workerStatusV1alpha1, nil
 }
@@ -68,7 +67,7 @@ func (w *workerDelegate) getMachineImageURL(name, version string) (string, error
 	if providerStatus := w.worker.Status.ProviderStatus; providerStatus != nil {
 		workerStatus := &apiskubevirt.WorkerStatus{}
 		if _, _, err := w.Decoder().Decode(providerStatus.Raw, nil, workerStatus); err != nil {
-			return "", errors.Wrapf(err, "could not decode worker status of worker '%s'", kutil.ObjectName(w.worker))
+			return "", errors.Wrapf(err, "could not decode status of worker %q", kutil.ObjectName(w.worker))
 		}
 
 		machineImage, err := helper.FindMachineImage(workerStatus.MachineImages, name, version)
@@ -94,7 +93,7 @@ func (w *workerDelegate) getMachineTypesExtension(machineType string) *apiskubev
 }
 
 func errorMachineImageNotFound(name, version string) error {
-	return fmt.Errorf("could not find machine image for %s/%s neither in componentconfig nor in worker status", name, version)
+	return errors.Errorf("machine image with name %q and version %q not found neither in componentconfig nor in worker status", name, version)
 }
 
 func appendMachineImage(machineImages []apiskubevirt.MachineImage, machineImage apiskubevirt.MachineImage) []apiskubevirt.MachineImage {

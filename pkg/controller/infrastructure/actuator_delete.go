@@ -46,7 +46,7 @@ func (a *actuator) Delete(ctx context.Context, infra *extensionsv1alpha1.Infrast
 	// Get a client and a namespace for the provider cluster from the kubeconfig
 	providerClient, namespace, err := kubevirt.GetClient(kubeconfig)
 	if err != nil {
-		return errors.Wrap(err, "could not get client from kubeconfig")
+		return errors.Wrap(err, "could not create client from kubeconfig")
 	}
 
 	// Delete tenant networks
@@ -63,7 +63,7 @@ func (a *actuator) Delete(ctx context.Context, infra *extensionsv1alpha1.Infrast
 			},
 		}
 		if err := client.IgnoreNotFound(providerClient.Delete(ctx, nad)); err != nil {
-			return errors.Wrapf(err, "could not delete NetworkAttachmentDefinition '%s'", kutil.ObjectName(nad))
+			return errors.Wrapf(err, "could not delete NetworkAttachmentDefinition %q", kutil.ObjectName(nad))
 		}
 	}
 

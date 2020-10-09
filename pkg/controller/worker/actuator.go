@@ -28,6 +28,7 @@ import (
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	gardener "github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -79,17 +80,17 @@ type delegateFactory struct {
 func (d *delegateFactory) WorkerDelegate(ctx context.Context, worker *extensionsv1alpha1.Worker, cluster *extensionscontroller.Cluster) (genericactuator.WorkerDelegate, error) {
 	clientset, err := kubernetes.NewForConfig(d.RESTConfig())
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "could not create clientset from REST config")
 	}
 
 	serverVersion, err := clientset.Discovery().ServerVersion()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "could not get server version")
 	}
 
 	seedChartApplier, err := gardener.NewChartApplierForConfig(d.RESTConfig())
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "could not create chart applier from REST config")
 	}
 
 	return NewWorkerDelegate(
@@ -140,7 +141,7 @@ func NewWorkerDelegate(
 	if cluster != nil {
 		cloudProfileConfig, err = helper.GetCloudProfileConfig(cluster.CloudProfile)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "could not get CloudProfileConfig from cloud profile")
 		}
 	}
 

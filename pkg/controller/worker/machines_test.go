@@ -20,6 +20,7 @@ package worker_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -527,7 +528,7 @@ var _ = Describe("Machines", func() {
 			It("should fail when the kubevirt secret cannot be read", func() {
 				c.EXPECT().
 					Get(context.TODO(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
-					Return(fmt.Errorf("error"))
+					Return(errors.New("error"))
 
 				result, err := workerDelegate.GenerateMachineDeployments(context.TODO())
 				Expect(err).To(HaveOccurred())

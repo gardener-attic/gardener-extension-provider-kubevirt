@@ -58,17 +58,17 @@ func (e *ensurer) EnsureKubeAPIServerDeployment(ctx context.Context, ectx generi
 
 	cluster, err := ectx.GetCluster(ctx)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "could not get cluster")
 	}
 
 	if cluster.Shoot != nil && cluster.Seed != nil && cluster.Shoot.Spec.Networking.Nodes != nil {
 		shootNodesIP, _, err := net.ParseCIDR(*cluster.Shoot.Spec.Networking.Nodes)
 		if err != nil {
-			return errors.Wrapf(err, "could not parse shoot nodes CIDR %s", *cluster.Shoot.Spec.Networking.Nodes)
+			return errors.Wrapf(err, "could not parse shoot nodes CIDR %q", *cluster.Shoot.Spec.Networking.Nodes)
 		}
 		_, seedPodsIPNet, err := net.ParseCIDR(cluster.Seed.Spec.Networks.Pods)
 		if err != nil {
-			return errors.Wrapf(err, "could not parse seed pods CIDR %s", cluster.Seed.Spec.Networks.Pods)
+			return errors.Wrapf(err, "could not parse seed pods CIDR %q", cluster.Seed.Spec.Networks.Pods)
 		}
 
 		// If the seed pods CIDR contains the shoot nodes CIDR (the seed cluster hosts the shoot cluster),

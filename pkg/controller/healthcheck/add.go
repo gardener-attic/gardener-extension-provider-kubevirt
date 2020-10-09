@@ -28,6 +28,7 @@ import (
 	extensionspredicate "github.com/gardener/gardener/extensions/pkg/predicate"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
+	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -59,10 +60,10 @@ func RegisterHealthChecks(mgr manager.Manager, opts healthcheck.DefaultAddArgs) 
 				HealthCheck:   general.CheckManagedResource(genericcontrolplaneactuator.ControlPlaneShootChartResourceName),
 			},
 		}); err != nil {
-		return err
+		return errors.Wrap(err, "could not register healthchecks for controlplane resources")
 	}
 
-	return healthcheck.DefaultRegistration(
+	if err := healthcheck.DefaultRegistration(
 		kubevirt.Type,
 		extensionsv1alpha1.SchemeGroupVersion.WithKind(extensionsv1alpha1.WorkerResource),
 		func() runtime.Object { return &extensionsv1alpha1.WorkerList{} },
@@ -83,7 +84,11 @@ func RegisterHealthChecks(mgr manager.Manager, opts healthcheck.DefaultAddArgs) 
 				ConditionType: string(gardencorev1beta1.ShootEveryNodeReady),
 				HealthCheck:   worker.NewNodesChecker(),
 			},
-		})
+		}); err != nil {
+		return errors.Wrap(err, "could not register healthchecks for worker resources")
+	}
+
+	return nil
 }
 
 // AddToManager adds a controller with the default Options.

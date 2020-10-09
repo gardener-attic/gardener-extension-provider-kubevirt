@@ -30,17 +30,17 @@ import (
 // Delete deletes the Worker related resources.
 func (a *actuator) Delete(ctx context.Context, worker *extensionsv1alpha1.Worker, cluster *extensionscontroller.Cluster) error {
 	if err := a.Actuator.Delete(ctx, worker, cluster); err != nil {
-		return errors.Wrap(err, "could not delete worker resouces")
+		return errors.Wrap(err, "could not reconcile worker deletion")
 	}
 
 	kubeconfig, err := kubevirt.GetKubeConfig(ctx, a.client, worker.Spec.SecretRef)
 	if err != nil {
-		return errors.Wrap(err, "could not get kubevirt kubeconfig from worker secret ref")
+		return errors.Wrap(err, "could not get kubeconfig from worker secret reference")
 	}
 
 	machineClasses := &machinev1alpha1.MachineClassList{}
 	if err := a.client.List(ctx, machineClasses, client.InNamespace(worker.Namespace)); err != nil {
-		return errors.Wrapf(err, "could not list machine classes in namespace %s", worker.Namespace)
+		return errors.Wrapf(err, "could not list machine classes in namespace %q", worker.Namespace)
 	}
 
 	return a.deleteDataVolumes(ctx, kubeconfig, worker, machineClasses)
@@ -54,13 +54,13 @@ func (a *actuator) deleteDataVolumes(ctx context.Context, kubeconfig []byte, wor
 
 	dataVolumes, err := a.dataVolumeManager.ListDataVolumes(ctx, kubeconfig, client.MatchingLabels(dataVolumeLabels))
 	if err != nil {
-		return errors.Wrapf(err, "could not list data volumes for namespace %s", worker.Namespace)
+		return errors.Wrapf(err, "could not list data volumes in namespace %q", worker.Namespace)
 	}
 
 	for _, dataVolume := range dataVolumes.Items {
 		if !machineClassSet(machineClasses).Has(dataVolume.Name) {
 			if err := a.dataVolumeManager.DeleteDataVolume(ctx, kubeconfig, dataVolume.Name); err != nil {
-				return errors.Wrapf(err, "could not delete data volume %s", dataVolume.Name)
+				return errors.Wrapf(err, "could not delete data volume %q", dataVolume.Name)
 			}
 		}
 	}

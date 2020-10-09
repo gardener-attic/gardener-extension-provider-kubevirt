@@ -62,7 +62,7 @@ func (e *ensurer) EnsureKubeAPIServerDeployment(ctx context.Context, ectx generi
 
 	cluster, err := controller.GetCluster(ctx, e.client, new.Namespace)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "could not get cluster")
 	}
 
 	if controller.IsHibernated(cluster) {

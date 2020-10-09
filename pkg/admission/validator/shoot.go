@@ -178,7 +178,7 @@ func (s *shoot) newValidationContext(ctx context.Context, shoot *core.Shoot) (*v
 		var err error
 		infrastructureConfig, err = admission.DecodeInfrastructureConfig(s.decoder, shoot.Spec.Provider.InfrastructureConfig)
 		if err != nil {
-			return nil, errors.Wrap(err, "could not decode infrastructureConfig")
+			return nil, errors.Wrapf(err, "could not decode infrastructureConfig of shoot %q", shoot.Name)
 		}
 	}
 
@@ -187,7 +187,7 @@ func (s *shoot) newValidationContext(ctx context.Context, shoot *core.Shoot) (*v
 		var err error
 		controlPlaneConfig, err = admission.DecodeControlPlaneConfig(s.decoder, shoot.Spec.Provider.ControlPlaneConfig)
 		if err != nil {
-			return nil, errors.Wrap(err, "could not decode controlPlaneConfig")
+			return nil, errors.Wrapf(err, "could not decode controlPlaneConfig of shoot %q", shoot.Name)
 		}
 	}
 
@@ -198,7 +198,7 @@ func (s *shoot) newValidationContext(ctx context.Context, shoot *core.Shoot) (*v
 			var err error
 			workerConfig, err = admission.DecodeWorkerConfig(s.decoder, worker.ProviderConfig)
 			if err != nil {
-				return nil, errors.Wrapf(err, "could not decode providerConfig in worker %q", worker.Name)
+				return nil, errors.Wrapf(err, "could not decode providerConfig of worker %q", worker.Name)
 			}
 		}
 		workerConfigs = append(workerConfigs, workerConfig)
@@ -210,11 +210,11 @@ func (s *shoot) newValidationContext(ctx context.Context, shoot *core.Shoot) (*v
 	}
 
 	if cloudProfile.Spec.ProviderConfig == nil {
-		return nil, errors.Errorf("providerConfig is not specified in cloud profile %q", cloudProfile.Name)
+		return nil, errors.Errorf("missing providerConfig in cloud profile %q", cloudProfile.Name)
 	}
 	cloudProfileConfig, err := admission.DecodeCloudProfileConfig(s.decoder, cloudProfile.Spec.ProviderConfig)
 	if err != nil {
-		return nil, errors.Wrapf(err, "could not decode providerConfig in cloud profile %q", cloudProfile.Name)
+		return nil, errors.Wrapf(err, "could not decode providerConfig of cloud profile %q", cloudProfile.Name)
 	}
 
 	return &validationContext{
