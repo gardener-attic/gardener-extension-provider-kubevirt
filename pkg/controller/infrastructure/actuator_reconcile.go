@@ -60,7 +60,7 @@ func (a *actuator) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infr
 	// Get a client and a namespace for the provider cluster from the kubeconfig
 	providerClient, namespace, err := kubevirt.GetClient(kubeconfig)
 	if err != nil {
-		return errors.Wrap(err, "could not get client from kubeconfig")
+		return errors.Wrap(err, "could not create client from kubeconfig")
 	}
 
 	var networks []kubevirtv1alpha1.NetworkStatus
@@ -91,7 +91,7 @@ func (a *actuator) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infr
 			})
 			return err
 		}); err != nil {
-			return errors.Wrapf(err, "could not create or update NetworkAttachmentDefinition '%s'", kutil.ObjectName(nad))
+			return errors.Wrapf(err, "could not create or update NetworkAttachmentDefinition %q", kutil.ObjectName(nad))
 		}
 
 		// Add the tenant network to the list of networks
@@ -106,7 +106,7 @@ func (a *actuator) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infr
 	// Check if the NetworkAttachmentDefinition CRD exists
 	var crdErr error
 	if crdErr = providerClient.Get(ctx, kutil.Key("", nadCRDName), &apiextensionsv1beta1.CustomResourceDefinition{}); crdErr != nil && !apierrors.IsNotFound(crdErr) {
-		return errors.Wrapf(err, "could not get CRD '%v'", nadCRDName)
+		return errors.Wrapf(err, "could not get CRD %q", nadCRDName)
 	}
 	if crdErr == nil {
 		// List all tenant networks in namespace
@@ -120,7 +120,7 @@ func (a *actuator) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infr
 				// Delete the NetworkAttachmentDefinition of the tenant network in the provider cluster
 				a.logger.Info("Deleting NetworkAttachmentDefinition", "name", nad.Name, "namespace", nad.Namespace)
 				if err := client.IgnoreNotFound(providerClient.Delete(ctx, &nad)); err != nil {
-					return errors.Wrapf(err, "could not delete NetworkAttachmentDefinition '%s'", kutil.ObjectName(&nad))
+					return errors.Wrapf(err, "could not delete NetworkAttachmentDefinition %q", kutil.ObjectName(&nad))
 				}
 			}
 		}

@@ -92,18 +92,18 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 
 	kubeconfig, err := kubevirt.GetKubeConfig(ctx, w.Client(), w.worker.Spec.SecretRef)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "could not get kubeconfig from worker secret reference")
 	}
 
 	// Get a client and a namespace for the provider cluster from the kubeconfig
 	_, namespace, err := w.clientFactory.GetClient(kubeconfig)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "could not create client from kubeconfig")
 	}
 
 	infrastructureStatus, err := helper.GetInfrastructureStatus(w.worker)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "could not get InfrastructureStatus from worker")
 	}
 
 	infrastructureStatusV1alpha1 := &kubevirtv1alpha1.InfrastructureStatus{
@@ -113,7 +113,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 		},
 	}
 	if err := w.Scheme().Convert(infrastructureStatus, infrastructureStatusV1alpha1, nil); err != nil {
-		return err
+		return errors.Wrap(err, "could not convert InfrastructureStatus to v1alpha1")
 	}
 
 	var networksData []string
@@ -122,7 +122,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 	}
 
 	if len(w.worker.Spec.SSHPublicKey) == 0 {
-		return fmt.Errorf("missing sshPublicKey in worker")
+		return errors.New("missing sshPublicKey in worker")
 	}
 
 	for _, pool := range w.worker.Spec.Pools {
@@ -130,7 +130,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 
 		workerConfig, err := helper.GetWorkerConfig(&pool)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "could not get WorkerConfig from worker pool %q", pool.Name)
 		}
 
 		machineType, err := w.getMachineType(pool.MachineType)
@@ -140,7 +140,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 
 		workerPoolHash, err := worker.WorkerPoolHash(pool, w.cluster, networksData...)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "could not compute hash for worker pool %q", pool.Name)
 		}
 
 		imageSourceURL, err := w.getMachineImageURL(pool.MachineImage.Name, pool.MachineImage.Version)
@@ -182,7 +182,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 		case machineType.Storage != nil:
 			rootVolumeClassName, rootVolumeSize = machineType.Storage.Class, machineType.Storage.StorageSize
 		default:
-			return fmt.Errorf("missing root volume parameters")
+			return errors.New("missing volume in worker pool and storage in machine type")
 		}
 
 		// Build additional volumes
@@ -267,7 +267,7 @@ func (w *workerDelegate) getStorageClassNameAndSize(volumeTypeName, volumeSize s
 	}
 	storageSize, err := resource.ParseQuantity(volumeSize)
 	if err != nil {
-		return "", resource.Quantity{}, err
+		return "", resource.Quantity{}, errors.Wrapf(err, "could not parse volume size %q as quantity", volumeSize)
 	}
 	return volumeType.Class, storageSize, nil
 }
@@ -278,7 +278,7 @@ func (w *workerDelegate) getMachineType(name string) (*corev1beta1.MachineType, 
 			return &mt, nil
 		}
 	}
-	return nil, fmt.Errorf("machine type %s not found in cloud profile spec", name)
+	return nil, errors.Errorf("machine type %q not found in cloud profile", name)
 }
 
 func (w *workerDelegate) getVolumeType(name string) (*corev1beta1.VolumeType, error) {
@@ -287,7 +287,7 @@ func (w *workerDelegate) getVolumeType(name string) (*corev1beta1.VolumeType, er
 			return &vt, nil
 		}
 	}
-	return nil, fmt.Errorf("volume type %s not found in cloud profile spec", name)
+	return nil, errors.Errorf("volume type %q not found in cloud profile", name)
 }
 
 func (w *workerDelegate) createOrUpdateMachineClassVolumes(ctx context.Context) error {
@@ -297,12 +297,12 @@ func (w *workerDelegate) createOrUpdateMachineClassVolumes(ctx context.Context) 
 
 	kubeconfig, err := kubevirt.GetKubeConfig(ctx, w.Client(), w.worker.Spec.SecretRef)
 	if err != nil {
-		return errors.Wrap(err, "could not get kubeconfig of the kubevirt cluster")
+		return errors.Wrap(err, "could not get kubeconfig from worker secret reference")
 	}
 
 	for name, dataVolumeSpec := range w.machineClassVolumes {
 		if err := w.dataVolumeManager.CreateOrUpdateDataVolume(ctx, kubeconfig, name, labels, *dataVolumeSpec); err != nil {
-			return errors.Wrapf(err, "could not create data volume for machine class %s", name)
+			return errors.Wrapf(err, "could not create data volume for machine class %q", name)
 		}
 	}
 

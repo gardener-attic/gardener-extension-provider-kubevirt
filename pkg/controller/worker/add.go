@@ -17,11 +17,11 @@ package worker
 import (
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/imagevector"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
-	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
-	"github.com/gardener/gardener/extensions/pkg/util"
 
+	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/extensions/pkg/controller/worker"
 	"github.com/gardener/gardener/extensions/pkg/controller/worker/genericactuator"
+	"github.com/gardener/gardener/extensions/pkg/util"
 	machinescheme "github.com/gardener/machine-controller-manager/pkg/client/clientset/versioned/scheme"
 	"github.com/pkg/errors"
 	apiextensionsscheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
@@ -48,10 +48,10 @@ type AddOptions struct {
 func AddToManagerWithOptions(mgr manager.Manager, opts AddOptions) error {
 	scheme := mgr.GetScheme()
 	if err := apiextensionsscheme.AddToScheme(scheme); err != nil {
-		return err
+		return errors.Wrap(err, "could not update manager scheme")
 	}
 	if err := machinescheme.AddToScheme(scheme); err != nil {
-		return err
+		return errors.Wrap(err, "could not update manager scheme")
 	}
 
 	clientFactory := kubevirt.ClientFactoryFunc(kubevirt.GetClient)

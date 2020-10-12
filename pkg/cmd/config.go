@@ -15,12 +15,11 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/config"
 	configloader "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/config/loader"
 
 	healthcheckconfig "github.com/gardener/gardener/extensions/pkg/controller/healthcheck/config"
+	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
 )
 
@@ -40,7 +39,7 @@ type Config struct {
 
 func (c *ConfigOptions) buildConfig() (*config.ControllerConfiguration, error) {
 	if len(c.ConfigFilePath) == 0 {
-		return nil, fmt.Errorf("config file path not set")
+		return nil, errors.New("config file path not set")
 	}
 	return configloader.LoadFromFile(c.ConfigFilePath)
 }

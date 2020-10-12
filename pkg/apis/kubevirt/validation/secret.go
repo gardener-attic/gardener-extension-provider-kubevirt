@@ -30,7 +30,7 @@ func ValidateCloudProviderSecret(secret *corev1.Secret) error {
 	}
 
 	if _, err := clientcmd.RESTConfigFromKubeConfig(kubeconfig); err != nil {
-		return errors.Wrapf(err, "invalid kubeconfig")
+		return errors.Wrapf(err, "could not create REST config from kubeconfig")
 	}
 
 	return nil

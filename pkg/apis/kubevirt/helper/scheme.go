@@ -91,17 +91,19 @@ func ApplyMachineClassCRDs(ctx context.Context, config *rest.Config) error {
 
 	c, err := client.New(config, client.Options{Scheme: Scheme})
 	if err != nil {
-		return err
+		return errors.Wrap(err, "could not create client")
 	}
 
 	spec := machineClassCRD.Spec.DeepCopy()
-	_, err = controllerutil.CreateOrUpdate(ctx, c, machineClassCRD, func() error {
+	if _, err = controllerutil.CreateOrUpdate(ctx, c, machineClassCRD, func() error {
 		machineClassCRD.Labels = utils.MergeStringMaps(machineClassCRD.Labels, deletionProtectionLabels)
 		machineClassCRD.Spec = *spec
 		return nil
-	})
+	}); err != nil {
+		return errors.Wrap(err, "could not create or update machineclasses CRD")
+	}
 
-	return err
+	return nil
 }
 
 // GetCloudProfileConfig extracts the CloudProfileConfig from the ProviderConfig section of the given CloudProfile.
@@ -109,7 +111,7 @@ func GetCloudProfileConfig(cloudProfile *gardencorev1beta1.CloudProfile) (*apisk
 	cloudProfileConfig := &apiskubevirt.CloudProfileConfig{}
 	if cloudProfile.Spec.ProviderConfig != nil && cloudProfile.Spec.ProviderConfig.Raw != nil {
 		if _, _, err := decoder.Decode(cloudProfile.Spec.ProviderConfig.Raw, nil, cloudProfileConfig); err != nil {
-			return nil, errors.Wrapf(err, "could not decode providerConfig of cloudProfile '%s'", kutil.ObjectName(cloudProfile))
+			return nil, errors.Wrapf(err, "could not decode providerConfig of cloudProfile %q", kutil.ObjectName(cloudProfile))
 		}
 	}
 	return cloudProfileConfig, nil
@@ -120,7 +122,7 @@ func GetInfrastructureConfig(infra *extensionsv1alpha1.Infrastructure) (*apiskub
 	config := &apiskubevirt.InfrastructureConfig{}
 	if infra.Spec.ProviderConfig != nil && infra.Spec.ProviderConfig.Raw != nil {
 		if _, _, err := decoder.Decode(infra.Spec.ProviderConfig.Raw, nil, config); err != nil {
-			return nil, errors.Wrapf(err, "could not decode providerConfig of infrastructure '%s'", kutil.ObjectName(infra))
+			return nil, errors.Wrapf(err, "could not decode providerConfig of infrastructure %q", kutil.ObjectName(infra))
 		}
 	}
 	return config, nil
@@ -131,7 +133,7 @@ func GetControlPlaneConfig(cp *extensionsv1alpha1.ControlPlane) (*apiskubevirt.C
 	config := &apiskubevirt.ControlPlaneConfig{}
 	if cp.Spec.ProviderConfig != nil && cp.Spec.ProviderConfig.Raw != nil {
 		if _, _, err := decoder.Decode(cp.Spec.ProviderConfig.Raw, nil, config); err != nil {
-			return nil, errors.Wrapf(err, "could not decode providerConfig of controlplane '%s'", kutil.ObjectName(cp))
+			return nil, errors.Wrapf(err, "could not decode providerConfig of controlplane %q", kutil.ObjectName(cp))
 		}
 	}
 	return config, nil
@@ -142,7 +144,7 @@ func GetWorkerConfig(p *extensionsv1alpha1.WorkerPool) (*apiskubevirt.WorkerConf
 	config := &apiskubevirt.WorkerConfig{}
 	if p.ProviderConfig != nil && p.ProviderConfig.Raw != nil {
 		if _, _, err := decoder.Decode(p.ProviderConfig.Raw, nil, config); err != nil {
-			return nil, errors.Wrapf(err, "could not decode providerConfig of worker pool '%s'", p.Name)
+			return nil, errors.Wrapf(err, "could not decode providerConfig of worker pool %q", p.Name)
 		}
 	}
 	return config, nil
@@ -153,7 +155,7 @@ func GetInfrastructureStatus(w *extensionsv1alpha1.Worker) (*apiskubevirt.Infras
 	status := &apiskubevirt.InfrastructureStatus{}
 	if w.Spec.InfrastructureProviderStatus != nil && w.Spec.InfrastructureProviderStatus.Raw != nil {
 		if _, _, err := decoder.Decode(w.Spec.InfrastructureProviderStatus.Raw, nil, status); err != nil {
-			return nil, errors.Wrapf(err, "could not decode infrastructureProviderStatus of worker '%s'", kutil.ObjectName(w))
+			return nil, errors.Wrapf(err, "could not decode infrastructureProviderStatus of worker %q", kutil.ObjectName(w))
 		}
 	}
 	return status, nil

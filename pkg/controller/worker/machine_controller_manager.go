@@ -25,6 +25,7 @@ import (
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/utils/chart"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
+	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -58,7 +59,7 @@ var (
 func (w *workerDelegate) GetMachineControllerManagerChartValues(ctx context.Context) (map[string]interface{}, error) {
 	namespace := &corev1.Namespace{}
 	if err := w.Client().Get(ctx, kutil.Key(w.worker.Namespace), namespace); err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "could not get namespace %q", namespace)
 	}
 
 	return map[string]interface{}{

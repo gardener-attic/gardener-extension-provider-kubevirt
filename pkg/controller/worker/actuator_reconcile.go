@@ -28,17 +28,17 @@ import (
 
 func (a *actuator) Reconcile(ctx context.Context, worker *extensionsv1alpha1.Worker, cluster *extensionscontroller.Cluster) error {
 	if err := a.Actuator.Reconcile(ctx, worker, cluster); err != nil {
-		return errors.Wrap(err, "could not reconcile worker resouces")
+		return errors.Wrap(err, "could not reconcile worker")
 	}
 
 	kubeconfig, err := kubevirt.GetKubeConfig(ctx, a.client, worker.Spec.SecretRef)
 	if err != nil {
-		return errors.Wrap(err, "could not get kubevirt kubeconfig from worker secret ref")
+		return errors.Wrap(err, "could not get kubeconfig from worker secret reference")
 	}
 
 	machineClasses := &machinev1alpha1.MachineClassList{}
 	if err := a.client.List(ctx, machineClasses, client.InNamespace(worker.Namespace)); err != nil {
-		return errors.Wrapf(err, "could not list machine classes in namespace %s", worker.Namespace)
+		return errors.Wrapf(err, "could not list machine classes in namespace %q", worker.Namespace)
 	}
 
 	return a.deleteDataVolumes(ctx, kubeconfig, worker, machineClasses)

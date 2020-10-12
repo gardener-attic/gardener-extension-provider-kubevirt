@@ -147,7 +147,7 @@ func (vp *valuesProvider) GetConfigChartValues(
 	// Get kubeconfig
 	kubeconfig, err := kubevirt.GetKubeConfig(ctx, vp.Client(), cp.Spec.SecretRef)
 	if err != nil {
-		return nil, errors.Wrapf(err, "could not get kubeconfig from secret '%s/%s'", cp.Spec.SecretRef.Namespace, cp.Spec.SecretRef.Name)
+		return nil, errors.Wrap(err, "could not get kubeconfig from controlplane secret reference")
 	}
 
 	// Get config chart values

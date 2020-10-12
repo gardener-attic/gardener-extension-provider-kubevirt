@@ -20,6 +20,7 @@ import (
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/config"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/config/install"
 
+	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
@@ -48,7 +49,7 @@ func init() {
 func LoadFromFile(filename string) (*config.ControllerConfiguration, error) {
 	bytes, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "could not read file %q", filename)
 	}
 
 	return Load(bytes)
@@ -65,7 +66,7 @@ func Load(data []byte) (*config.ControllerConfiguration, error) {
 
 	decoded, _, err := codec.Decode(data, &schema.GroupVersionKind{Version: "v1alpha1", Kind: "Config"}, cfg)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "could not decode controller configuration")
 	}
 
 	return decoded.(*config.ControllerConfiguration), nil

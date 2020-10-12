@@ -58,7 +58,7 @@ func (cp *cloudProfile) Validate(ctx context.Context, new, old runtime.Object) e
 
 	cpConfig, err := admission.DecodeCloudProfileConfig(cp.decoder, cloudProfile.Spec.ProviderConfig)
 	if err != nil {
-		return errors.Wrapf(err, "could not decode providerConfig in cloud profile %q", cloudProfile.Name)
+		return errors.Wrapf(err, "could not decode providerConfig of cloud profile %q", cloudProfile.Name)
 	}
 
 	return validation.ValidateCloudProfileConfig(&cloudProfile.Spec, cpConfig).ToAggregate()
