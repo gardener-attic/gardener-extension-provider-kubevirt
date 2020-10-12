@@ -33,6 +33,8 @@ import (
 var (
 	// DefaultAddOptions are the default AddOptions for AddToManager.
 	DefaultAddOptions = AddOptions{}
+
+	logger = log.Log.WithName("kubevirt-worker-controller")
 )
 
 // AddOptions are options to apply when adding the KubeVirt worker controller to the manager.
@@ -55,22 +57,17 @@ func AddToManagerWithOptions(mgr manager.Manager, opts AddOptions) error {
 	}
 
 	clientFactory := kubevirt.ClientFactoryFunc(kubevirt.GetClient)
-	dataVolumeManager, err := kubevirt.NewDefaultDataVolumeManager(clientFactory)
-	if err != nil {
-		return errors.Wrap(err, "could not create kubevirt data volume manager")
-	}
+	dataVolumeManager := kubevirt.NewDataVolumeManager(clientFactory, logger)
 
 	delegateFactory := &delegateFactory{
-		logger:            workerLogger,
 		clientFactory:     clientFactory,
 		dataVolumeManager: dataVolumeManager,
+		logger:            logger.WithName("delegate-factory"),
 	}
-
-	logger := log.Log.WithName("worker-actuator")
 
 	return worker.Add(mgr, worker.AddArgs{
 		Actuator: NewActuator(genericactuator.NewActuator(
-			workerLogger,
+			logger,
 			delegateFactory,
 			kubevirt.MachineControllerManagerName,
 			mcmChart,
@@ -78,8 +75,8 @@ func AddToManagerWithOptions(mgr manager.Manager, opts AddOptions) error {
 			imagevector.ImageVector(),
 			extensionscontroller.ChartRendererFactoryFunc(util.NewChartRendererForShoot)),
 			delegateFactory.Client(),
-			logger,
-			dataVolumeManager),
+			dataVolumeManager,
+			logger),
 		ControllerOptions: opts.Controller,
 		Predicates:        worker.DefaultPredicates(opts.IgnoreOperationAnnotation),
 		Type:              kubevirt.Type,

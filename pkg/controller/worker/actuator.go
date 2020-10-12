@@ -32,32 +32,28 @@ import (
 	"k8s.io/client-go/kubernetes"
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 )
 
 const clusterLabel = "kubevirt.provider.extensions.gardener.cloud/cluster"
 
-var workerLogger = log.Log.WithName("kubevirt-worker-actuator")
-
 // actuator is an Actuator that acts upon and updates the status of worker resources.
 type actuator struct {
 	worker.Actuator
 
-	dataVolumeManager kubevirt.DataVolumeManager
 	client            client.Client
+	dataVolumeManager kubevirt.DataVolumeManager
 	logger            logr.Logger
 }
 
-// NewActuator creates a new Actuator that updates the status of the handled WorkerPoolConfigs.
-func NewActuator(workerActuator worker.Actuator, client client.Client, logger logr.Logger,
-	dataVolumeManager kubevirt.DataVolumeManager) worker.Actuator {
+// NewActuator creates a new Actuator.
+func NewActuator(workerActuator worker.Actuator, client client.Client, dataVolumeManager kubevirt.DataVolumeManager, logger logr.Logger) worker.Actuator {
 
 	return &actuator{
 		Actuator:          workerActuator,
-		logger:            logger,
-		dataVolumeManager: dataVolumeManager,
 		client:            client,
+		dataVolumeManager: dataVolumeManager,
+		logger:            logger.WithName("kubevirt-worker-actuator"),
 	}
 }
 
@@ -71,10 +67,11 @@ func (a *actuator) InjectClient(client client.Client) error {
 }
 
 type delegateFactory struct {
-	logger            logr.Logger
+	common.RESTConfigContext
+
 	clientFactory     kubevirt.ClientFactory
 	dataVolumeManager kubevirt.DataVolumeManager
-	common.RESTConfigContext
+	logger            logr.Logger
 }
 
 func (d *delegateFactory) WorkerDelegate(ctx context.Context, worker *extensionsv1alpha1.Worker, cluster *extensionscontroller.Cluster) (genericactuator.WorkerDelegate, error) {
@@ -127,10 +124,8 @@ type workerDelegate struct {
 // NewWorkerDelegate creates a new context for a worker reconciliation.
 func NewWorkerDelegate(
 	clientContext common.ClientContext,
-
 	seedChartApplier gardener.ChartApplier,
 	serverVersion string,
-
 	worker *extensionsv1alpha1.Worker,
 	cluster *extensionscontroller.Cluster,
 	clientFactory kubevirt.ClientFactory,
@@ -146,11 +141,9 @@ func NewWorkerDelegate(
 	}
 
 	return &workerDelegate{
-		ClientContext: clientContext,
-
-		seedChartApplier: seedChartApplier,
-		serverVersion:    serverVersion,
-
+		ClientContext:      clientContext,
+		seedChartApplier:   seedChartApplier,
+		serverVersion:      serverVersion,
 		cloudProfileConfig: cloudProfileConfig,
 		cluster:            cluster,
 		worker:             worker,

@@ -46,15 +46,14 @@ func (a *actuator) Delete(ctx context.Context, worker *extensionsv1alpha1.Worker
 	return a.deleteDataVolumes(ctx, kubeconfig, worker, machineClasses)
 }
 
-func (a *actuator) deleteDataVolumes(ctx context.Context, kubeconfig []byte, worker *extensionsv1alpha1.Worker,
-	machineClasses *machinev1alpha1.MachineClassList) error {
-	dataVolumeLabels := map[string]string{
+func (a *actuator) deleteDataVolumes(ctx context.Context, kubeconfig []byte, worker *extensionsv1alpha1.Worker, machineClasses *machinev1alpha1.MachineClassList) error {
+	labels := map[string]string{
 		clusterLabel: worker.Namespace,
 	}
 
-	dataVolumes, err := a.dataVolumeManager.ListDataVolumes(ctx, kubeconfig, client.MatchingLabels(dataVolumeLabels))
+	dataVolumes, err := a.dataVolumeManager.ListDataVolumes(ctx, kubeconfig, labels)
 	if err != nil {
-		return errors.Wrapf(err, "could not list data volumes in namespace %q", worker.Namespace)
+		return errors.Wrap(err, "could not list data volumes")
 	}
 
 	for _, dataVolume := range dataVolumes.Items {

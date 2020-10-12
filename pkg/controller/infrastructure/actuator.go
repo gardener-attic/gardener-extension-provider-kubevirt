@@ -15,22 +15,25 @@
 package infrastructure
 
 import (
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
+
 	"github.com/gardener/gardener/extensions/pkg/controller/common"
 	"github.com/gardener/gardener/extensions/pkg/controller/infrastructure"
 	"github.com/go-logr/logr"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type actuator struct {
 	common.ChartRendererContext
 
-	logger logr.Logger
+	networkManager kubevirt.NetworkManager
+	logger         logr.Logger
 }
 
 // NewActuator creates a new Actuator that updates the status of the handled Infrastructure resources.
-func NewActuator() infrastructure.Actuator {
+func NewActuator(networkManager kubevirt.NetworkManager, logger logr.Logger) infrastructure.Actuator {
 
 	return &actuator{
-		logger: log.Log.WithName("infrastructure-actuator"),
+		networkManager: networkManager,
+		logger:         logger.WithName("kubevirt-infrastructure-actuator"),
 	}
 }

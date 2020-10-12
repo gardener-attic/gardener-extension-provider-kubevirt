@@ -301,8 +301,8 @@ func (w *workerDelegate) createOrUpdateMachineClassVolumes(ctx context.Context) 
 	}
 
 	for name, dataVolumeSpec := range w.machineClassVolumes {
-		if err := w.dataVolumeManager.CreateOrUpdateDataVolume(ctx, kubeconfig, name, labels, *dataVolumeSpec); err != nil {
-			return errors.Wrapf(err, "could not create data volume for machine class %q", name)
+		if _, err := w.dataVolumeManager.CreateOrUpdateDataVolume(ctx, kubeconfig, name, labels, *dataVolumeSpec); err != nil {
+			return errors.Wrapf(err, "could not create or update data volume %q", name)
 		}
 	}
 
