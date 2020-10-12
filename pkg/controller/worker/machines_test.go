@@ -30,6 +30,7 @@ import (
 	kubevirtv1alpha1 "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/v1alpha1"
 	. "github.com/gardener/gardener-extension-provider-kubevirt/pkg/controller/worker"
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
+	mockkubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/mock/kubevirt"
 
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/extensions/pkg/controller/common"
@@ -57,51 +58,52 @@ import (
 
 var _ = Describe("Machines", func() {
 	var (
-		ctrl           *gomock.Controller
-		c              *mockclient.MockClient
-		chartApplier   *mockkubernetes.MockChartApplier
-		providerClient *mockclient.MockClient
+		ctrl *gomock.Controller
+
+		c                 *mockclient.MockClient
+		chartApplier      *mockkubernetes.MockChartApplier
+		clientFactory     *mockkubevirt.MockClientFactory
+		dataVolumeManager *mockkubevirt.MockDataVolumeManager
 	)
 
 	BeforeEach(func() {
 		ctrl = gomock.NewController(GinkgoT())
 
 		c = mockclient.NewMockClient(ctrl)
-		providerClient = mockclient.NewMockClient(ctrl)
 		chartApplier = mockkubernetes.NewMockChartApplier(ctrl)
+		clientFactory = mockkubevirt.NewMockClientFactory(ctrl)
+		dataVolumeManager = mockkubevirt.NewMockDataVolumeManager(ctrl)
 	})
 
 	AfterEach(func() {
 		ctrl.Finish()
 	})
 
-	mockClientFactory := kubevirt.ClientFactoryFunc(func(kubeconfig []byte) (client.Client, string, error) {
-		return providerClient, "default", nil
-	})
-
-	Context("with workerDelegate", func() {
-		workerDelegate, _ := NewWorkerDelegate(common.NewClientContext(nil, nil, nil), nil, "", nil, nil, nil, nil)
-
+	Context("WorkerDelegate", func() {
 		Describe("#MachineClassKind", func() {
 			It("should return the correct kind of the machine class", func() {
+				workerDelegate, err := NewWorkerDelegate(common.NewClientContext(nil, nil, nil), nil, "", nil, nil, nil, nil)
+				Expect(err).NotTo(HaveOccurred())
+
 				Expect(workerDelegate.MachineClassKind()).To(Equal("MachineClass"))
 			})
 		})
 
 		Describe("#MachineClassList", func() {
 			It("should return the correct type for the machine class list", func() {
+				workerDelegate, err := NewWorkerDelegate(common.NewClientContext(nil, nil, nil), nil, "", nil, nil, nil, nil)
+				Expect(err).NotTo(HaveOccurred())
+
 				Expect(workerDelegate.MachineClassList()).To(Equal(&machinev1alpha1.MachineClassList{}))
 			})
 		})
 
-		Describe("#GenerateMachineDeployments, #DeployMachineClasses", func() {
+		Describe("#DeployMachineClasses, #GetMachineImages, #GenerateMachineDeployments", func() {
 			var (
 				scheme                           *runtime.Scheme
 				decoder                          runtime.Decoder
 				cluster                          *extensionscontroller.Cluster
 				workerPoolHash1, workerPoolHash2 string
-				dataVolumeManager                kubevirt.DataVolumeManager
-				err                              error
 			)
 
 			namespace := "shoot--dev--kubevirt-1"
@@ -180,23 +182,23 @@ var _ = Describe("Machines", func() {
 										APIVersion: "kubevirt.provider.extensions.gardener.cloud/v1alpha1",
 										Kind:       "WorkerConfig",
 									},
-									OvercommitGuestOverhead: true,
-									DNSPolicy:               corev1.DNSDefault,
-									DNSConfig: &corev1.PodDNSConfig{
-										Nameservers: []string{dnsNameserver},
-									},
-									DisablePreAllocatedDataVolumes: true,
-									Memory: &kubevirtv1.Memory{
-										Hugepages: &kubevirtv1.Hugepages{
-											PageSize: "2Mi",
-										},
-									},
 									CPU: &kubevirtv1.CPU{
 										Cores:                 uint32(1),
 										Sockets:               uint32(2),
 										Threads:               uint32(1),
 										DedicatedCPUPlacement: true,
 									},
+									Memory: &kubevirtv1.Memory{
+										Hugepages: &kubevirtv1.Hugepages{
+											PageSize: "2Mi",
+										},
+									},
+									DNSPolicy: corev1.DNSDefault,
+									DNSConfig: &corev1.PodDNSConfig{
+										Nameservers: []string{dnsNameserver},
+									},
+									DisablePreAllocatedDataVolumes: true,
+									OvercommitGuestOverhead:        true,
 								}),
 							},
 						},
@@ -229,27 +231,22 @@ var _ = Describe("Machines", func() {
 				},
 			}
 
-			It("should return a data volume manager", func() {
-				dataVolumeManager, err = kubevirt.NewDefaultDataVolumeManager(mockClientFactory)
-				Expect(err).NotTo(HaveOccurred())
-			})
-
 			BeforeEach(func() {
 				scheme = runtime.NewScheme()
-				_ = apiskubevirt.AddToScheme(scheme)
-				_ = kubevirtv1alpha1.AddToScheme(scheme)
+				Expect(apiskubevirt.AddToScheme(scheme)).NotTo(HaveOccurred())
+				Expect(kubevirtv1alpha1.AddToScheme(scheme)).NotTo(HaveOccurred())
 				decoder = serializer.NewCodecFactory(scheme).UniversalDecoder()
 
 				cluster = createCluster(cloudProfileName, shootVersion, images)
 
-				workerPoolHash1, _ = worker.WorkerPoolHash(w.Spec.Pools[0], cluster, networkName, "true", networkSHA)
-				workerPoolHash2, _ = worker.WorkerPoolHash(w.Spec.Pools[1], cluster, networkName, "true", networkSHA)
-				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, mockClientFactory, dataVolumeManager)
+				var err error
+				workerPoolHash1, err = worker.WorkerPoolHash(w.Spec.Pools[0], cluster, networkName, "true", networkSHA)
+				Expect(err).NotTo(HaveOccurred())
+				workerPoolHash2, err = worker.WorkerPoolHash(w.Spec.Pools[1], cluster, networkName, "true", networkSHA)
+				Expect(err).NotTo(HaveOccurred())
 			})
 
-			It("should return the expected machine deployments", func() {
-				generateKubeVirtSecret(c)
-
+			It("should deploy the expected machine class and return the expected images and deployments", func() {
 				machineDeploymentName1 := fmt.Sprintf("%s-%s-z%d", namespace, namePool1, 1)
 				machineDeploymentName2 := fmt.Sprintf("%s-%s-z%d", namespace, namePool1, 2)
 				machineDeploymentName3 := fmt.Sprintf("%s-%s-z%d", namespace, namePool2, 1)
@@ -276,7 +273,7 @@ var _ = Describe("Machines", func() {
 					},
 				}
 
-				machineClass1 := generateMachineClass(
+				machineClass1 := createMachineClass(
 					machineClassTemplate,
 					machineClassName1,
 					"local-1",
@@ -293,7 +290,6 @@ var _ = Describe("Machines", func() {
 					},
 					&cdicorev1alpha1.DataVolumeSpec{
 						PVC: &corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("standard"),
 							AccessModes: []corev1.PersistentVolumeAccessMode{
 								"ReadWriteOnce",
 							},
@@ -302,6 +298,7 @@ var _ = Describe("Machines", func() {
 									corev1.ResourceStorage: resource.MustParse("8Gi"),
 								},
 							},
+							StorageClassName: pointer.StringPtr("standard"),
 						},
 						Source: cdicorev1alpha1.DataVolumeSource{
 							HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
@@ -332,7 +329,7 @@ var _ = Describe("Machines", func() {
 					},
 				)
 
-				machineClass2 := generateMachineClass(
+				machineClass2 := createMachineClass(
 					machineClassTemplate,
 					machineClassName2,
 					"local-2",
@@ -349,7 +346,6 @@ var _ = Describe("Machines", func() {
 					},
 					&cdicorev1alpha1.DataVolumeSpec{
 						PVC: &corev1.PersistentVolumeClaimSpec{
-							StorageClassName: pointer.StringPtr("standard"),
 							AccessModes: []corev1.PersistentVolumeAccessMode{
 								"ReadWriteOnce",
 							},
@@ -358,6 +354,7 @@ var _ = Describe("Machines", func() {
 									corev1.ResourceStorage: resource.MustParse("8Gi"),
 								},
 							},
+							StorageClassName: pointer.StringPtr("standard"),
 						},
 						Source: cdicorev1alpha1.DataVolumeSource{
 							HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
@@ -388,7 +385,7 @@ var _ = Describe("Machines", func() {
 					},
 				)
 
-				machineClass3 := generateMachineClass(
+				machineClass3 := createMachineClass(
 					machineClassTemplate,
 					machineClassName3,
 					"local-3",
@@ -448,30 +445,50 @@ var _ = Describe("Machines", func() {
 					},
 				)
 
-				chartApplier.
-					EXPECT().
-					Apply(
-						context.TODO(),
-						filepath.Join(kubevirt.InternalChartsPath, "machine-class"),
-						namespace,
-						"machine-class",
-						kubernetes.Values(map[string]interface{}{"machineClasses": []map[string]interface{}{
+				expectGetSecret(c, namespace, "kubevirt-provider-credentials", 2)
+
+				clientFactory.EXPECT().GetClient([]byte(kubeconfig)).Return(nil, "default", nil)
+
+				chartApplier.EXPECT().Apply(context.TODO(), filepath.Join(kubevirt.InternalChartsPath, "machine-class"), namespace, "machine-class",
+					kubernetes.Values(map[string]interface{}{
+						"machineClasses": []map[string]interface{}{
 							machineClass1,
 							machineClass2,
 							machineClass3,
-						}}),
-					).
-					Return(nil)
+						},
+					}),
+				).Return(nil)
 
-				generateKubeVirtDataVolumes(providerClient)
+				dataVolumeManager.EXPECT().CreateOrUpdateDataVolume(context.TODO(), []byte(kubeconfig), machineClassName3,
+					map[string]string{"kubevirt.provider.extensions.gardener.cloud/cluster": namespace},
+					cdicorev1alpha1.DataVolumeSpec{
+						PVC: &corev1.PersistentVolumeClaimSpec{
+							AccessModes: []corev1.PersistentVolumeAccessMode{
+								"ReadWriteOnce",
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceStorage: resource.MustParse("8Gi"),
+								},
+							},
+							StorageClassName: pointer.StringPtr("standard"),
+						},
+						Source: cdicorev1alpha1.DataVolumeSource{
+							HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
+								URL: ubuntuSourceURL,
+							},
+						},
+					})
 
-				By("comparing machine classes")
-				err := workerDelegate.DeployMachineClasses(context.TODO())
+				workerDelegate, err := NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, clientFactory, dataVolumeManager)
 				Expect(err).NotTo(HaveOccurred())
 
-				By("comparing machine images")
-				machineImages, err := workerDelegate.GetMachineImages(context.TODO())
-				Expect(machineImages).To(Equal(&kubevirtv1alpha1.WorkerStatus{
+				By("deploying machine classes")
+				err = workerDelegate.DeployMachineClasses(context.TODO())
+				Expect(err).NotTo(HaveOccurred())
+
+				By("getting machine images")
+				workerStatus := &kubevirtv1alpha1.WorkerStatus{
 					TypeMeta: metav1.TypeMeta{
 						APIVersion: kubevirtv1alpha1.SchemeGroupVersion.String(),
 						Kind:       "WorkerStatus",
@@ -483,11 +500,12 @@ var _ = Describe("Machines", func() {
 							SourceURL: ubuntuSourceURL,
 						},
 					},
-				}))
+				}
+				result, err := workerDelegate.GetMachineImages(context.TODO())
 				Expect(err).NotTo(HaveOccurred())
+				Expect(result).To(Equal(workerStatus))
 
-				By("comparing machine deployments")
-
+				By("generating machine deployments")
 				machineDeployments := worker.MachineDeployments{
 					{
 						Name:                 machineDeploymentName1,
@@ -520,28 +538,26 @@ var _ = Describe("Machines", func() {
 						MachineConfiguration: machineConfiguration,
 					},
 				}
-				result, err := workerDelegate.GenerateMachineDeployments(context.TODO())
+				result2, err := workerDelegate.GenerateMachineDeployments(context.TODO())
 				Expect(err).NotTo(HaveOccurred())
-				Expect(result).To(Equal(machineDeployments))
+				Expect(result2).To(Equal(machineDeployments))
 			})
 
-			It("should fail when the kubevirt secret cannot be read", func() {
-				c.EXPECT().
-					Get(context.TODO(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			It("should fail when reading the provider secret fails", func() {
+				c.EXPECT().Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: "kubevirt-provider-credentials"}, gomock.AssignableToTypeOf(&corev1.Secret{})).
 					Return(errors.New("error"))
 
+				workerDelegate, err := NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, clientFactory, dataVolumeManager)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("generating machine deployments")
 				result, err := workerDelegate.GenerateMachineDeployments(context.TODO())
 				Expect(err).To(HaveOccurred())
 				Expect(result).To(BeNil())
 			})
 
-			It("should fail when the machine image cannot be found", func() {
-				cloudProfileName := "test-profile"
-				shootVersion := "1.2.3"
-
-				generateKubeVirtSecret(c)
-
-				imagesOutOfConfig := []kubevirtv1alpha1.MachineImages{
+			It("should fail when a machine image is not found", func() {
+				images := []kubevirtv1alpha1.MachineImages{
 					{
 						Name: "ubuntu",
 						Versions: []kubevirtv1alpha1.MachineImageVersion{
@@ -553,19 +569,22 @@ var _ = Describe("Machines", func() {
 					},
 				}
 
-				By("creating a cluster without images")
-				cluster := createCluster(cloudProfileName, shootVersion, imagesOutOfConfig)
+				cluster := createCluster(cloudProfileName, shootVersion, images)
 
-				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, mockClientFactory, dataVolumeManager)
+				expectGetSecret(c, namespace, "kubevirt-provider-credentials", 1)
 
+				clientFactory.EXPECT().GetClient([]byte(kubeconfig)).Return(nil, "default", nil)
+
+				workerDelegate, err := NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, clientFactory, dataVolumeManager)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("getting machine images")
 				result, err := workerDelegate.GenerateMachineDeployments(context.TODO())
 				Expect(err).To(HaveOccurred())
 				Expect(result).To(BeNil())
 			})
 
 			It("should set expected machineControllerManager settings on machine deployment", func() {
-				generateKubeVirtSecret(c)
-
 				testDrainTimeout := metav1.Duration{Duration: 10 * time.Minute}
 				testHealthTimeout := metav1.Duration{Duration: 20 * time.Minute}
 				testCreationTimeout := metav1.Duration{Duration: 30 * time.Minute}
@@ -579,8 +598,14 @@ var _ = Describe("Machines", func() {
 					NodeConditions:         testNodeConditions,
 				}
 
-				workerDelegate, _ = NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, mockClientFactory, dataVolumeManager)
+				expectGetSecret(c, namespace, "kubevirt-provider-credentials", 1)
 
+				clientFactory.EXPECT().GetClient([]byte(kubeconfig)).Return(nil, "default", nil)
+
+				workerDelegate, err := NewWorkerDelegate(common.NewClientContext(c, scheme, decoder), chartApplier, "", w, cluster, clientFactory, dataVolumeManager)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("generating machine deployments")
 				result, err := workerDelegate.GenerateMachineDeployments(context.TODO())
 				resultSettings := result[0].MachineConfiguration
 				resultNodeConditions := strings.Join(testNodeConditions, ",")
@@ -612,56 +637,29 @@ users:
   user:
     token: abc`
 
-func generateKubeVirtSecret(c *mockclient.MockClient) {
-	c.EXPECT().
-		Get(context.TODO(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+func expectGetSecret(c *mockclient.MockClient, namespace, name string, times int) {
+	c.EXPECT().Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: name}, gomock.AssignableToTypeOf(&corev1.Secret{})).
 		DoAndReturn(func(_ context.Context, _ client.ObjectKey, secret *corev1.Secret) error {
 			secret.Data = map[string][]byte{
 				kubevirt.KubeconfigSecretKey: []byte(kubeconfig),
 			}
 			return nil
-		}).AnyTimes()
+		}).Times(times)
 }
 
-func generateKubeVirtDataVolumes(providerClient *mockclient.MockClient) {
-	providerClient.
-		EXPECT().
-		Get(context.TODO(), gomock.Any(), gomock.AssignableToTypeOf(&cdicorev1alpha1.DataVolume{})).
-		DoAndReturn(func(_ context.Context, _ client.ObjectKey, dataVolume *cdicorev1alpha1.DataVolume) error {
-			dataVolume.Spec = cdicorev1alpha1.DataVolumeSpec{
-				PVC: &corev1.PersistentVolumeClaimSpec{
-					StorageClassName: pointer.StringPtr("standard"),
-					AccessModes: []corev1.PersistentVolumeAccessMode{
-						"ReadWriteOnce",
-					},
-				},
-				Source: cdicorev1alpha1.DataVolumeSource{
-					HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
-						URL: "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img",
-					},
-				},
-			}
-			return nil
-		}).AnyTimes()
-
-	providerClient.
-		EXPECT().
-		Update(context.TODO(), gomock.Any(), gomock.Any()).
-		AnyTimes()
-}
-
-func generateMachineClass(
+func createMachineClass(
 	classTemplate map[string]interface{},
 	name, zone string,
 	resources *kubevirtv1.ResourceRequirements,
 	rootVolume *cdicorev1alpha1.DataVolumeSpec,
 	additionalVolumes []map[string]interface{},
-	cpu *kubevirtv1.CPU, memory *kubevirtv1.Memory,
-	dnsPolicy corev1.DNSPolicy, dnsConfig *corev1.PodDNSConfig,
+	cpu *kubevirtv1.CPU,
+	memory *kubevirtv1.Memory,
+	dnsPolicy corev1.DNSPolicy,
+	dnsConfig *corev1.PodDNSConfig,
 	tags map[string]string,
 ) map[string]interface{} {
 	out := make(map[string]interface{})
-
 	for k, v := range classTemplate {
 		out[k] = v
 	}
@@ -681,24 +679,6 @@ func generateMachineClass(
 }
 
 func createCluster(cloudProfileName, shootVersion string, images []kubevirtv1alpha1.MachineImages) *extensionscontroller.Cluster {
-	cloudProfileConfig := &kubevirtv1alpha1.CloudProfileConfig{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: kubevirtv1alpha1.SchemeGroupVersion.String(),
-			Kind:       "CloudProfileConfig",
-		},
-		MachineImages: images,
-		MachineTypes: []kubevirtv1alpha1.MachineType{
-			{
-				Name: "local-1",
-				Limits: &kubevirtv1alpha1.ResourcesLimits{
-					CPU:    resource.MustParse("500m"),
-					Memory: resource.MustParse("8Gi"),
-				},
-			},
-		},
-	}
-	cloudProfileConfigJSON, _ := json.Marshal(cloudProfileConfig)
-
 	cluster := &extensionscontroller.Cluster{
 		CloudProfile: &gardencorev1beta1.CloudProfile{
 			ObjectMeta: metav1.ObjectMeta{
@@ -706,7 +686,22 @@ func createCluster(cloudProfileName, shootVersion string, images []kubevirtv1alp
 			},
 			Spec: gardencorev1beta1.CloudProfileSpec{
 				ProviderConfig: &runtime.RawExtension{
-					Raw: cloudProfileConfigJSON,
+					Raw: encode(&kubevirtv1alpha1.CloudProfileConfig{
+						TypeMeta: metav1.TypeMeta{
+							APIVersion: kubevirtv1alpha1.SchemeGroupVersion.String(),
+							Kind:       "CloudProfileConfig",
+						},
+						MachineImages: images,
+						MachineTypes: []kubevirtv1alpha1.MachineType{
+							{
+								Name: "local-1",
+								Limits: &kubevirtv1alpha1.ResourcesLimits{
+									CPU:    resource.MustParse("500m"),
+									Memory: resource.MustParse("8Gi"),
+								},
+							},
+						},
+					}),
 				},
 				Regions: []gardencorev1beta1.Region{
 					{
