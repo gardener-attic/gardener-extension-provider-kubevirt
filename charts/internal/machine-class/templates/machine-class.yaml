@@ -18,6 +18,8 @@ metadata:
   name: {{ $machineClass.name }}
   namespace: "{{ $.Release.Namespace }}"
 providerSpec:
+  region: {{ $machineClass.region }}
+  zone: {{ $machineClass.zone }}  
 {{- if $machineClass.resources }}
   resources:
 {{ toYaml $machineClass.resources | indent 4 }}
@@ -36,26 +38,24 @@ providerSpec:
   networks:
 {{ toYaml $machineClass.networks | indent 4 }}
 {{- end }}
-  region: {{ $machineClass.region }}
-  zone: {{ $machineClass.zone }}
-{{- if $machineClass.tags }}
-  tags:
-{{ toYaml $machineClass.tags | indent 4 }}
-{{- end }}
 {{- if $machineClass.dnsPolicy }}
+{{- if $machineClass.cpu }}
+  cpu:
+{{ toYaml $machineClass.cpu | indent 4 }}
+{{- end }}
+{{- if $machineClass.memory }}
+  memory:
+{{ toYaml $machineClass.memory | indent 4 }}
+{{- end }}
   dnsPolicy: {{ $machineClass.dnsPolicy }}
 {{- end }}
 {{- if $machineClass.dnsConfig }}
   dnsConfig:
 {{ toYaml $machineClass.dnsConfig | indent 4 }}
 {{- end }}
-{{- if $machineClass.memory }}
-  memory:
-{{ toYaml $machineClass.memory | indent 4 }}
-{{- end }}
-{{- if $machineClass.cpu }}
-  cpu:
-{{ toYaml $machineClass.cpu | indent 4 }}
+{{- if $machineClass.tags }}
+  tags:
+{{ toYaml $machineClass.tags | indent 4 }}
 {{- end }}
 secretRef:
   name: "{{ $machineClass.name }}"
