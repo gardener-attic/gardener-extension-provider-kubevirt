@@ -27,15 +27,15 @@ import (
 	"github.com/gardener/gardener/extensions/pkg/controller/worker/genericactuator"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	gardener "github.com/gardener/gardener/pkg/client/kubernetes"
+	machinev1alpha1 "github.com/gardener/machine-controller-manager/pkg/apis/machine/v1alpha1"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/kubernetes"
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 )
-
-const clusterLabel = "kubevirt.provider.extensions.gardener.cloud/cluster"
 
 // actuator is an Actuator that acts upon and updates the status of worker resources.
 type actuator struct {
@@ -47,11 +47,9 @@ type actuator struct {
 }
 
 // NewActuator creates a new Actuator.
-func NewActuator(workerActuator worker.Actuator, client client.Client, dataVolumeManager kubevirt.DataVolumeManager, logger logr.Logger) worker.Actuator {
-
+func NewActuator(workerActuator worker.Actuator, dataVolumeManager kubevirt.DataVolumeManager, logger logr.Logger) worker.Actuator {
 	return &actuator{
 		Actuator:          workerActuator,
-		client:            client,
 		dataVolumeManager: dataVolumeManager,
 		logger:            logger.WithName("kubevirt-worker-actuator"),
 	}
@@ -64,6 +62,67 @@ func (a *actuator) InjectFunc(f inject.Func) error {
 func (a *actuator) InjectClient(client client.Client) error {
 	a.client = client
 	return nil
+}
+
+func (a *actuator) Reconcile(ctx context.Context, worker *extensionsv1alpha1.Worker, cluster *extensionscontroller.Cluster) error {
+	if err := a.Actuator.Reconcile(ctx, worker, cluster); err != nil {
+		return errors.Wrap(err, "could not reconcile worker")
+	}
+
+	return a.deleteOrphanedDataVolumes(ctx, worker)
+}
+
+func (a *actuator) Delete(ctx context.Context, worker *extensionsv1alpha1.Worker, cluster *extensionscontroller.Cluster) error {
+	if err := a.Actuator.Delete(ctx, worker, cluster); err != nil {
+		return errors.Wrap(err, "could not reconcile worker deletion")
+	}
+
+	return a.deleteOrphanedDataVolumes(ctx, worker)
+}
+
+func (a *actuator) deleteOrphanedDataVolumes(ctx context.Context, worker *extensionsv1alpha1.Worker) error {
+	// Get the kubeconfig of the provider cluster
+	kubeconfig, err := kubevirt.GetKubeConfig(ctx, a.client, worker.Spec.SecretRef)
+	if err != nil {
+		return errors.Wrap(err, "could not get kubeconfig from worker secret reference")
+	}
+
+	// List all machine classes in the shoot namespace
+	machineClasses := &machinev1alpha1.MachineClassList{}
+	if err := a.client.List(ctx, machineClasses, client.InNamespace(worker.Namespace)); err != nil {
+		return errors.Wrapf(err, "could not list machine classes in namespace %q", worker.Namespace)
+	}
+	machineClassNames := names(machineClasses)
+
+	// Initialize labels
+	labels := map[string]string{
+		kubevirt.ClusterLabel: worker.Namespace,
+	}
+
+	// List all data volumes in the provider cluster
+	dataVolumes, err := a.dataVolumeManager.ListDataVolumes(ctx, kubeconfig, labels)
+	if err != nil {
+		return errors.Wrap(err, "could not list data volumes")
+	}
+
+	// Delete data volumes that don't have a matching machine class
+	for _, dataVolume := range dataVolumes.Items {
+		if !machineClassNames.Has(dataVolume.Name) {
+			if err := a.dataVolumeManager.DeleteDataVolume(ctx, kubeconfig, dataVolume.Name); err != nil {
+				return errors.Wrapf(err, "could not delete orphaned data volume %q", dataVolume.Name)
+			}
+		}
+	}
+
+	return nil
+}
+
+func names(machineClasses *machinev1alpha1.MachineClassList) sets.String {
+	set := sets.NewString()
+	for _, machineClass := range machineClasses.Items {
+		set.Insert(machineClass.Name)
+	}
+	return set
 }
 
 type delegateFactory struct {
@@ -94,7 +153,6 @@ func (d *delegateFactory) WorkerDelegate(ctx context.Context, worker *extensions
 		d.ClientContext,
 		seedChartApplier,
 		serverVersion.GitVersion,
-
 		worker,
 		cluster,
 		d.clientFactory,

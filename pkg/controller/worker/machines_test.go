@@ -460,7 +460,7 @@ var _ = Describe("Machines", func() {
 				).Return(nil)
 
 				dataVolumeManager.EXPECT().CreateOrUpdateDataVolume(context.TODO(), []byte(kubeconfig), machineClassName3,
-					map[string]string{"kubevirt.provider.extensions.gardener.cloud/cluster": namespace},
+					map[string]string{kubevirt.ClusterLabel: namespace},
 					cdicorev1alpha1.DataVolumeSpec{
 						PVC: &corev1.PersistentVolumeClaimSpec{
 							AccessModes: []corev1.PersistentVolumeAccessMode{

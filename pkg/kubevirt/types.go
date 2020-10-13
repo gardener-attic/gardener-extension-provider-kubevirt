@@ -25,6 +25,9 @@ const (
 	// Name is the name of the KubeVirt provider controller.
 	Name = "provider-kubevirt"
 
+	// ClusterLabel is the label to put on provider cluster objects that identifies the shoot cluster.
+	ClusterLabel = "kubevirt.provider.extensions.gardener.cloud/cluster"
+
 	// CloudControllerManagerImageName is the name of the cloud-controller-manager image.
 	CloudControllerManagerImageName = "cloud-controller-manager"
 

@@ -292,7 +292,7 @@ func (w *workerDelegate) getVolumeType(name string) (*corev1beta1.VolumeType, er
 
 func (w *workerDelegate) createOrUpdateMachineClassVolumes(ctx context.Context) error {
 	labels := map[string]string{
-		clusterLabel: w.worker.Namespace,
+		kubevirt.ClusterLabel: w.worker.Namespace,
 	}
 
 	kubeconfig, err := kubevirt.GetKubeConfig(ctx, w.Client(), w.worker.Spec.SecretRef)
