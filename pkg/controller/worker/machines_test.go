@@ -259,6 +259,7 @@ var _ = Describe("Machines", func() {
 				machineClassName3 := fmt.Sprintf("%s-%s", machineDeploymentName3, workerPoolHash2)
 
 				machineClassTemplate := map[string]interface{}{
+					"region": "local",
 					"sshKeys": []string{
 						string(sshPublicKey),
 					},
@@ -269,7 +270,6 @@ var _ = Describe("Machines", func() {
 							SHA:     networkSHA,
 						},
 					},
-					"region": "local",
 					"secret": map[string]interface{}{
 						"cloudConfig": "user-data",
 						"kubeconfig":  kubeconfig,
@@ -310,25 +310,25 @@ var _ = Describe("Machines", func() {
 						},
 					},
 					nil,
-					map[string]string{
-						"mcm.gardener.cloud/cluster":      namespace,
-						"mcm.gardener.cloud/role":         "node",
-						"mcm.gardener.cloud/machineclass": machineClassName1,
-					},
-					corev1.DNSDefault,
-					&corev1.PodDNSConfig{
-						Nameservers: []string{dnsNameserver},
+					&kubevirtv1.CPU{
+						Cores:                 uint32(1),
+						Sockets:               uint32(2),
+						Threads:               uint32(1),
+						DedicatedCPUPlacement: true,
 					},
 					&kubevirtv1.Memory{
 						Hugepages: &kubevirtv1.Hugepages{
 							PageSize: "2Mi",
 						},
 					},
-					&kubevirtv1.CPU{
-						Cores:                 uint32(1),
-						Sockets:               uint32(2),
-						Threads:               uint32(1),
-						DedicatedCPUPlacement: true,
+					corev1.DNSDefault,
+					&corev1.PodDNSConfig{
+						Nameservers: []string{dnsNameserver},
+					},
+					map[string]string{
+						"mcm.gardener.cloud/cluster":      namespace,
+						"mcm.gardener.cloud/role":         "node",
+						"mcm.gardener.cloud/machineclass": machineClassName1,
 					},
 				)
 
@@ -366,25 +366,25 @@ var _ = Describe("Machines", func() {
 						},
 					},
 					nil,
-					map[string]string{
-						"mcm.gardener.cloud/cluster":      namespace,
-						"mcm.gardener.cloud/role":         "node",
-						"mcm.gardener.cloud/machineclass": machineClassName2,
-					},
-					corev1.DNSDefault,
-					&corev1.PodDNSConfig{
-						Nameservers: []string{dnsNameserver},
+					&kubevirtv1.CPU{
+						Cores:                 uint32(1),
+						Sockets:               uint32(2),
+						Threads:               uint32(1),
+						DedicatedCPUPlacement: true,
 					},
 					&kubevirtv1.Memory{
 						Hugepages: &kubevirtv1.Hugepages{
 							PageSize: "2Mi",
 						},
 					},
-					&kubevirtv1.CPU{
-						Cores:                 uint32(1),
-						Sockets:               uint32(2),
-						Threads:               uint32(1),
-						DedicatedCPUPlacement: true,
+					corev1.DNSDefault,
+					&corev1.PodDNSConfig{
+						Nameservers: []string{dnsNameserver},
+					},
+					map[string]string{
+						"mcm.gardener.cloud/cluster":      namespace,
+						"mcm.gardener.cloud/role":         "node",
+						"mcm.gardener.cloud/machineclass": machineClassName2,
 					},
 				)
 
@@ -437,15 +437,15 @@ var _ = Describe("Machines", func() {
 							},
 						},
 					},
+					nil,
+					nil,
+					"",
+					nil,
 					map[string]string{
 						"mcm.gardener.cloud/cluster":      namespace,
 						"mcm.gardener.cloud/role":         "node",
 						"mcm.gardener.cloud/machineclass": machineClassName3,
 					},
-					"",
-					nil,
-					nil,
-					nil,
 				)
 
 				chartApplier.
@@ -656,9 +656,9 @@ func generateMachineClass(
 	resources *kubevirtv1.ResourceRequirements,
 	rootVolume *cdicorev1alpha1.DataVolumeSpec,
 	additionalVolumes []map[string]interface{},
-	tags map[string]string,
+	cpu *kubevirtv1.CPU, memory *kubevirtv1.Memory,
 	dnsPolicy corev1.DNSPolicy, dnsConfig *corev1.PodDNSConfig,
-	memory *kubevirtv1.Memory, cpu *kubevirtv1.CPU,
+	tags map[string]string,
 ) map[string]interface{} {
 	out := make(map[string]interface{})
 
@@ -671,11 +671,11 @@ func generateMachineClass(
 	out["resources"] = resources
 	out["rootVolume"] = rootVolume
 	out["additionalVolumes"] = additionalVolumes
-	out["tags"] = tags
+	out["cpu"] = cpu
+	out["memory"] = memory
 	out["dnsPolicy"] = dnsPolicy
 	out["dnsConfig"] = dnsConfig
-	out["memory"] = memory
-	out["cpu"] = cpu
+	out["tags"] = tags
 
 	return out
 }

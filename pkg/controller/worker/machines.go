@@ -214,13 +214,17 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 
 			machineClasses = append(machineClasses, map[string]interface{}{
 				"name":              className,
+				"region":            w.worker.Spec.Region,
+				"zone":              zone,
 				"resources":         resourceRequirements,
 				"rootVolume":        rootVolume,
 				"additionalVolumes": additionalVolumes,
 				"sshKeys":           []string{string(w.worker.Spec.SSHPublicKey)},
 				"networks":          infrastructureStatusV1alpha1.Networks,
-				"region":            w.worker.Spec.Region,
-				"zone":              zone,
+				"cpu":               workerConfig.CPU,
+				"memory":            workerConfig.Memory,
+				"dnsPolicy":         workerConfig.DNSPolicy,
+				"dnsConfig":         workerConfig.DNSConfig,
 				"tags": map[string]string{
 					"mcm.gardener.cloud/cluster":      w.worker.Namespace,
 					"mcm.gardener.cloud/role":         "node",
@@ -230,10 +234,6 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 					"cloudConfig": string(pool.UserData),
 					"kubeconfig":  string(kubeconfig),
 				},
-				"dnsPolicy": workerConfig.DNSPolicy,
-				"dnsConfig": workerConfig.DNSConfig,
-				"memory":    workerConfig.Memory,
-				"cpu":       workerConfig.CPU,
 			})
 
 			machineDeployments = append(machineDeployments, worker.MachineDeployment{

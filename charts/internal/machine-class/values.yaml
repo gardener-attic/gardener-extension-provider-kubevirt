@@ -1,5 +1,7 @@
 machineClasses:
 - name: class-1
+  region: default
+  zone: default
   resources:
     requests:
       cpu: "100m"
@@ -35,22 +37,20 @@ machineClasses:
   networks:
   - name: default/net-conf
     default: true
-  region: default
-  zone: default
-  tags:
-  - kubernetes.io/cluster: foo
-    kubernetes.io/role: node
-  dnsPolicy: ClusterFirst
-  dnsConfig:
-    nameservers:
-    - 8.8.8.8
-  memory:
-    hugepages:
-      pageSize: "2Mi"
   cpu:
     sockets: 2
     threads: 1
     cores: 1
+  memory:
+    hugepages:
+      pageSize: "2Mi"
+  dnsPolicy: ClusterFirst
+  dnsConfig:
+    nameservers:
+    - 8.8.8.8
+  tags:
+  - kubernetes.io/cluster: foo
+    kubernetes.io/role: node
   secret:
     cloudConfig: abc
     kubeconfig: abc

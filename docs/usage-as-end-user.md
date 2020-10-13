@@ -137,19 +137,6 @@ An example `WorkerConfig` for the KubeVirt extension looks as follows:
 ```yaml
 apiVersion: kubevirt.provider.extensions.gardener.cloud/v1alpha1
 kind: WorkerConfig
-# DNS policy for KubeVirt VMs. Valid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'.
-# Defaults to 'ClusterFirst`.
-# See https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
-dnsPolicy: ClusterFirst
-# DNS configuration for KubeVirt VMs, merged with the generated DNS configuration based on dnsPolicy.
-# See https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
-dnsConfig:
-  nameservers:
-  - 8.8.8.8
-# Disable using pre-allocated data volumes. Defaults to 'false'.
-disablePreAllocatedDataVolumes: true
-# cpu allows to set the CPU topology of the VMI
-# See https://kubevirt.io/api-reference/master/definitions.html#_v1_cpu
 cpu:
   # number of cores inside the VMI
   cores: 1
@@ -185,13 +172,26 @@ memory:
 # all memory is in use on a node. Defaults to false.
 # For more details take a look at https://kubevirt.io/user-guide/#/usage/overcommit?id=overcommit-the-guest-overhead
 overcommitGuestOverhead: true
+# DNS policy for KubeVirt VMs. Valid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'.
+# Defaults to 'ClusterFirst`.
+# See https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
+dnsPolicy: ClusterFirst
+# DNS configuration for KubeVirt VMs, merged with the generated DNS configuration based on dnsPolicy.
+# See https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
+dnsConfig:
+  nameservers:
+  - 8.8.8.8
+# Disable using pre-allocated data volumes. Defaults to 'false'.
+disablePreAllocatedDataVolumes: true
+# cpu allows to set the CPU topology of the VMI
+# See https://kubevirt.io/api-reference/master/definitions.html#_v1_cpu
 ```
 
 Currently, these KubeVirt-specific options may include:
 
+* The CPU topology and memory configuration of the KubVirt VMs. For more information, see [CPU.v1](https://kubevirt.io/api-reference/master/definitions.html#_v1_cpu) and [Memory.v1](https://kubevirt.io/api-reference/master/definitions.html#_v1_memory). 
 * The DNS policy and DNS configuration of the KubeVirt VMs. For more information, see [DNS for Services and Pods](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/).
 * Whether to use *pre-allocated data volumes* with KubeVirt VMs. With pre-allocated data volumes (the default), a data volume is created in advance for each machine class, the OS image is imported into this volume only once, and actual KubeVirt VM data volumes are cloned from this data volume. Typically, this significantly speeds up the data volume creation process. You can disable this feature by setting the `disablePreAllocatedDataVolumes` option to `true`.
-* The CPU topology and memory configuration of the KubVirt VMs. For more information, see [CPU.v1](https://kubevirt.io/api-reference/master/definitions.html#_v1_cpu) and [Memory.v1](https://kubevirt.io/api-reference/master/definitions.html#_v1_memory). 
 
 ## Region and Zone Support
 
