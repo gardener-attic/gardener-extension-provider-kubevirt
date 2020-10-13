@@ -26,22 +26,15 @@ import (
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	"github.com/gardener/gardener/pkg/utils"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
-	networkv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"github.com/pkg/errors"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 const (
 	// clusterLabel is the label to put on a NetworkAttachmentDefinition object that identifies its cluster.
 	clusterLabel = "kubevirt.provider.extensions.gardener.cloud/cluster"
-	// nadCRDName is the NetworkAttachmentDefinition CRD name
-	nadCRDName = "network-attachment-definitions.k8s.cni.cncf.io"
 )
 
 func (a *actuator) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *extensionscontroller.Cluster) error {
@@ -57,16 +50,10 @@ func (a *actuator) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infr
 		return errors.Wrap(err, "could not get kubeconfig from infrastructure secret reference")
 	}
 
-	// Get a client and a namespace for the provider cluster from the kubeconfig
-	providerClient, namespace, err := kubevirt.GetClient(kubeconfig)
-	if err != nil {
-		return errors.Wrap(err, "could not create client from kubeconfig")
-	}
-
 	var networks []kubevirtv1alpha1.NetworkStatus
 
 	// Initialize labels
-	nadLabels := map[string]string{
+	labels := map[string]string{
 		clusterLabel: infra.Namespace,
 	}
 
@@ -75,23 +62,10 @@ func (a *actuator) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infr
 		// Determine NetworkAttachmentDefinition name
 		name := fmt.Sprintf("%s-%s", infra.Namespace, tenantNetwork.Name)
 
-		// Create or update the NetworkAttachmentDefinition of the tenant network in the provider cluster
-		a.logger.Info("Creating or updating NetworkAttachmentDefinition", "name", name, "namespace", namespace)
-		nad := &networkv1.NetworkAttachmentDefinition{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: namespace,
-				Labels:    nadLabels,
-			},
-		}
-		if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-			_, err := controllerutil.CreateOrUpdate(ctx, providerClient, nad, func() error {
-				nad.Spec.Config = tenantNetwork.Config
-				return nil
-			})
-			return err
-		}); err != nil {
-			return errors.Wrapf(err, "could not create or update NetworkAttachmentDefinition %q", kutil.ObjectName(nad))
+		// Create or update the tenant network in the provider cluster
+		nad, err := a.networkManager.CreateOrUpdateNetworkAttachmentDefinition(ctx, kubeconfig, name, labels, tenantNetwork.Config)
+		if err != nil {
+			return errors.Wrapf(err, "could not create or update tenant network %q", name)
 		}
 
 		// Add the tenant network to the list of networks
@@ -103,49 +77,30 @@ func (a *actuator) Reconcile(ctx context.Context, infra *extensionsv1alpha1.Infr
 	}
 
 	// Delete old tenant networks
-	// Check if the NetworkAttachmentDefinition CRD exists
-	var crdErr error
-	if crdErr = providerClient.Get(ctx, kutil.Key("", nadCRDName), &apiextensionsv1beta1.CustomResourceDefinition{}); crdErr != nil && !apierrors.IsNotFound(crdErr) {
-		return errors.Wrapf(err, "could not get CRD %q", nadCRDName)
+	// List all tenant networks in the provider cluster
+	nadList, err := a.networkManager.ListNetworkAttachmentDefinitions(ctx, kubeconfig, labels)
+	if err != nil {
+		return errors.Wrap(err, "could not list tenant networks")
 	}
-	if crdErr == nil {
-		// List all tenant networks in namespace
-		nadList := &networkv1.NetworkAttachmentDefinitionList{}
-		if err := providerClient.List(ctx, nadList, client.InNamespace(namespace), client.MatchingLabels(nadLabels)); err != nil {
-			return errors.Wrap(err, "could not list NetworkAttachmentDefinitions")
-		}
-		for _, nad := range nadList.Items {
-			// If the network is no longer listed in the InfrastructureConfig, delete it
-			if !containsNetworkWithName(networks, kutil.ObjectName(&nad)) {
-				// Delete the NetworkAttachmentDefinition of the tenant network in the provider cluster
-				a.logger.Info("Deleting NetworkAttachmentDefinition", "name", nad.Name, "namespace", nad.Namespace)
-				if err := client.IgnoreNotFound(providerClient.Delete(ctx, &nad)); err != nil {
-					return errors.Wrapf(err, "could not delete NetworkAttachmentDefinition %q", kutil.ObjectName(&nad))
-				}
+	for _, nad := range nadList.Items {
+		// If the tenant network is no longer listed in the InfrastructureConfig, delete it
+		if !containsNetworkWithName(networks, kutil.ObjectName(&nad)) {
+			// Delete the tenant network in the provider cluster
+			if err := a.networkManager.DeleteNetworkAttachmentDefinition(ctx, kubeconfig, nad.Name); err != nil {
+				return errors.Wrapf(err, "could not delete tenant network %q", nad.Name)
 			}
 		}
 	}
 
 	// Check shared networks
 	for _, sharedNetwork := range config.Networks.SharedNetworks {
-		// Determine NetworkAttachmentDefinition namespace
-		ns := sharedNetwork.Namespace
-		if ns == "" {
-			ns = namespace
+		// Get the the shared network from the provider cluster
+		nad, err := a.networkManager.GetNetworkAttachmentDefinition(ctx, kubeconfig, sharedNetwork.Name, sharedNetwork.Namespace)
+		if err != nil {
+			return errors.Wrapf(err, "could not get shared network '%s/%s'", sharedNetwork.Namespace, sharedNetwork.Name)
 		}
 
-		// Get the NetworkAttachmentDefinition of the shared network from the provider cluster
-		a.logger.Info("Getting NetworkAttachmentDefinition", "name", sharedNetwork.Name, "namespace", ns)
-		nadKey := kutil.Key(ns, sharedNetwork.Name)
-		nad := &networkv1.NetworkAttachmentDefinition{}
-		if err := providerClient.Get(ctx, nadKey, nad); err != nil {
-			if apierrors.IsNotFound(err) {
-				return errors.Wrapf(err, "NetworkAttachmentDefinition '%v' not found", nadKey)
-			}
-			return errors.Wrapf(err, "could not get NetworkAttachmentDefinition '%v'", nadKey)
-		}
-
-		// Add the full NetworkAttachmentDefinition name to the list of networks
+		// Add the full shared network name to the list of networks
 		networks = append(networks, kubevirtv1alpha1.NetworkStatus{
 			Name: kutil.ObjectName(nad),
 		})

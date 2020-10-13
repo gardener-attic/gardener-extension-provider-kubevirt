@@ -76,11 +76,12 @@ func (m *MockDataVolumeManager) EXPECT() *MockDataVolumeManagerMockRecorder {
 }
 
 // CreateOrUpdateDataVolume mocks base method.
-func (m *MockDataVolumeManager) CreateOrUpdateDataVolume(arg0 context.Context, arg1 []byte, arg2 string, arg3 map[string]string, arg4 v1alpha1.DataVolumeSpec) error {
+func (m *MockDataVolumeManager) CreateOrUpdateDataVolume(arg0 context.Context, arg1 []byte, arg2 string, arg3 map[string]string, arg4 v1alpha1.DataVolumeSpec) (*v1alpha1.DataVolume, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateOrUpdateDataVolume", arg0, arg1, arg2, arg3, arg4)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(*v1alpha1.DataVolume)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CreateOrUpdateDataVolume indicates an expected call of CreateOrUpdateDataVolume.
@@ -103,37 +104,17 @@ func (mr *MockDataVolumeManagerMockRecorder) DeleteDataVolume(arg0, arg1, arg2 i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDataVolume", reflect.TypeOf((*MockDataVolumeManager)(nil).DeleteDataVolume), arg0, arg1, arg2)
 }
 
-// GetDataVolume mocks base method.
-func (m *MockDataVolumeManager) GetDataVolume(arg0 context.Context, arg1 []byte, arg2 string) (*v1alpha1.DataVolume, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDataVolume", arg0, arg1, arg2)
-	ret0, _ := ret[0].(*v1alpha1.DataVolume)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetDataVolume indicates an expected call of GetDataVolume.
-func (mr *MockDataVolumeManagerMockRecorder) GetDataVolume(arg0, arg1, arg2 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDataVolume", reflect.TypeOf((*MockDataVolumeManager)(nil).GetDataVolume), arg0, arg1, arg2)
-}
-
 // ListDataVolumes mocks base method.
-func (m *MockDataVolumeManager) ListDataVolumes(arg0 context.Context, arg1 []byte, arg2 ...client.ListOption) (*v1alpha1.DataVolumeList, error) {
+func (m *MockDataVolumeManager) ListDataVolumes(arg0 context.Context, arg1 []byte, arg2 map[string]string) (*v1alpha1.DataVolumeList, error) {
 	m.ctrl.T.Helper()
-	varargs := []interface{}{arg0, arg1}
-	for _, a := range arg2 {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "ListDataVolumes", varargs...)
+	ret := m.ctrl.Call(m, "ListDataVolumes", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*v1alpha1.DataVolumeList)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListDataVolumes indicates an expected call of ListDataVolumes.
-func (mr *MockDataVolumeManagerMockRecorder) ListDataVolumes(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+func (mr *MockDataVolumeManagerMockRecorder) ListDataVolumes(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{arg0, arg1}, arg2...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDataVolumes", reflect.TypeOf((*MockDataVolumeManager)(nil).ListDataVolumes), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDataVolumes", reflect.TypeOf((*MockDataVolumeManager)(nil).ListDataVolumes), arg0, arg1, arg2)
 }

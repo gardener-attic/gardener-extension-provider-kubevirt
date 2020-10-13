@@ -19,12 +19,15 @@ import (
 
 	"github.com/gardener/gardener/extensions/pkg/controller/infrastructure"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 var (
 	// DefaultAddOptions are the default AddOptions for AddToManager.
 	DefaultAddOptions = AddOptions{}
+
+	logger = log.Log.WithName("kubevirt-infrastructure-controller")
 )
 
 // AddOptions are options to apply when adding the KubeVirt infrastructure controller to the manager.
@@ -39,7 +42,7 @@ type AddOptions struct {
 // The opts.Reconciler is being set with a newly instantiated actuator.
 func AddToManagerWithOptions(mgr manager.Manager, opts AddOptions) error {
 	return infrastructure.Add(mgr, infrastructure.AddArgs{
-		Actuator:          NewActuator(),
+		Actuator:          NewActuator(kubevirt.NewNetworkManager(kubevirt.ClientFactoryFunc(kubevirt.GetClient), logger), logger),
 		ControllerOptions: opts.Controller,
 		Predicates:        infrastructure.DefaultPredicates(opts.IgnoreOperationAnnotation),
 		Type:              kubevirt.Type,
