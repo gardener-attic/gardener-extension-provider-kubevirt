@@ -66,15 +66,15 @@ func AddToManagerWithOptions(mgr manager.Manager, opts AddOptions) error {
 	}
 
 	return worker.Add(mgr, worker.AddArgs{
-		Actuator: NewActuator(genericactuator.NewActuator(
-			logger,
-			delegateFactory,
-			kubevirt.MachineControllerManagerName,
-			mcmChart,
-			mcmShootChart,
-			imagevector.ImageVector(),
-			extensionscontroller.ChartRendererFactoryFunc(util.NewChartRendererForShoot)),
-			delegateFactory.Client(),
+		Actuator: NewActuator(
+			genericactuator.NewActuator(
+				logger,
+				delegateFactory,
+				kubevirt.MachineControllerManagerName,
+				mcmChart,
+				mcmShootChart,
+				imagevector.ImageVector(),
+				extensionscontroller.ChartRendererFactoryFunc(util.NewChartRendererForShoot)),
 			dataVolumeManager,
 			logger),
 		ControllerOptions: opts.Controller,

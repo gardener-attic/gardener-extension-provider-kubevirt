@@ -12,15 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package infrastructure
+//go:generate mockgen -package client -destination=mocks.go sigs.k8s.io/controller-runtime/pkg/client Client,StatusWriter
 
-import (
-	"context"
-
-	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
-	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
-)
-
-func (a *actuator) Migrate(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *extensionscontroller.Cluster) error {
-	return nil
-}
+package client
