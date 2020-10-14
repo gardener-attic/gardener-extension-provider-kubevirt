@@ -38,7 +38,6 @@ providerSpec:
   networks:
 {{ toYaml $machineClass.networks | indent 4 }}
 {{- end }}
-{{- if $machineClass.dnsPolicy }}
 {{- if $machineClass.cpu }}
   cpu:
 {{ toYaml $machineClass.cpu | indent 4 }}
@@ -47,6 +46,7 @@ providerSpec:
   memory:
 {{ toYaml $machineClass.memory | indent 4 }}
 {{- end }}
+{{- if $machineClass.dnsPolicy }}
   dnsPolicy: {{ $machineClass.dnsPolicy }}
 {{- end }}
 {{- if $machineClass.dnsConfig }}
