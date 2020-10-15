@@ -24,6 +24,10 @@ providerSpec:
   resources:
 {{ toYaml $machineClass.resources | indent 4 }}
 {{- end }}
+{{- if $machineClass.devices }}
+  devices:
+{{ toYaml $machineClass.devices | indent 4 }}
+{{- end }}
 {{- if $machineClass.rootVolume }}
   rootVolume:
 {{ toYaml $machineClass.rootVolume | indent 4 }}

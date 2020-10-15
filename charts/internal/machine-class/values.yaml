@@ -10,6 +10,11 @@ machineClasses:
       cpu: "300m"
       memory: "4Gi"
     overcommitGuestOverhead: true
+  devices:
+    disks:
+    - name: "root-disk"
+      cache: "none"
+    networkInterfaceMultiQueue: true
   rootVolume:
     pvc:
       storageClassName: standard

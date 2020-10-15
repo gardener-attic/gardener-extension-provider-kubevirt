@@ -93,13 +93,18 @@ var (
 	workerConfigPath         = func(index int) *field.Path { return workersPath.Index(index).Child("providerConfig") }
 )
 
+type workerConfigContext struct {
+	workerConfig *apiskubevirt.WorkerConfig
+	dataVolumes  []core.DataVolume
+}
+
 type validationContext struct {
-	shoot                *core.Shoot
-	infrastructureConfig *apiskubevirt.InfrastructureConfig
-	controlPlaneConfig   *apiskubevirt.ControlPlaneConfig
-	workerConfigs        []*apiskubevirt.WorkerConfig
-	cloudProfile         *gardencorev1beta1.CloudProfile
-	cloudProfileConfig   *apiskubevirt.CloudProfileConfig
+	shoot                 *core.Shoot
+	infrastructureConfig  *apiskubevirt.InfrastructureConfig
+	controlPlaneConfig    *apiskubevirt.ControlPlaneConfig
+	workerConfigsContexts []*workerConfigContext
+	cloudProfile          *gardencorev1beta1.CloudProfile
+	cloudProfileConfig    *apiskubevirt.CloudProfileConfig
 }
 
 func (s *shoot) validateContext(valContext *validationContext) field.ErrorList {
@@ -111,8 +116,8 @@ func (s *shoot) validateContext(valContext *validationContext) field.ErrorList {
 	allErrors = append(allErrors, validation.ValidateInfrastructureConfig(valContext.infrastructureConfig, infrastructureConfigPath)...)
 	allErrors = append(allErrors, validation.ValidateControlPlaneConfig(valContext.controlPlaneConfig, controlPlaneConfigPath)...)
 	allErrors = append(allErrors, validation.ValidateWorkers(valContext.shoot.Spec.Provider.Workers, workersPath)...)
-	for i, workerConfig := range valContext.workerConfigs {
-		allErrors = append(allErrors, validation.ValidateWorkerConfig(workerConfig, workerConfigPath(i))...)
+	for i, workerConfigContext := range valContext.workerConfigsContexts {
+		allErrors = append(allErrors, validation.ValidateWorkerConfig(workerConfigContext.workerConfig, workerConfigContext.dataVolumes, workerConfigPath(i))...)
 	}
 
 	return allErrors
@@ -158,8 +163,10 @@ func (s *shoot) validateUpdate(ctx context.Context, oldShoot, shoot *core.Shoot)
 
 	allErrors = append(allErrors, validation.ValidateWorkersUpdate(oldValContext.shoot.Spec.Provider.Workers, currentValContext.shoot.Spec.Provider.Workers, workersPath)...)
 
-	for i, currentWorkerConfig := range currentValContext.workerConfigs {
-		for j, oldWorkerConfig := range oldValContext.workerConfigs {
+	for i, currentContext := range currentValContext.workerConfigsContexts {
+		currentWorkerConfig := currentContext.workerConfig
+		for j, oldContext := range oldValContext.workerConfigsContexts {
+			oldWorkerConfig := oldContext.workerConfig
 			if shoot.Spec.Provider.Workers[i].Name == oldShoot.Spec.Provider.Workers[j].Name && !reflect.DeepEqual(oldWorkerConfig, currentWorkerConfig) {
 				allErrors = append(allErrors, validation.ValidateWorkerConfigUpdate(currentWorkerConfig, oldWorkerConfig, workerConfigPath(i))...)
 			}
@@ -191,7 +198,7 @@ func (s *shoot) newValidationContext(ctx context.Context, shoot *core.Shoot) (*v
 		}
 	}
 
-	var workerConfigs []*apiskubevirt.WorkerConfig
+	var workerConfigsContexts []*workerConfigContext
 	for _, worker := range shoot.Spec.Provider.Workers {
 		workerConfig := &apiskubevirt.WorkerConfig{}
 		if worker.ProviderConfig != nil {
@@ -201,7 +208,11 @@ func (s *shoot) newValidationContext(ctx context.Context, shoot *core.Shoot) (*v
 				return nil, errors.Wrapf(err, "could not decode providerConfig of worker %q", worker.Name)
 			}
 		}
-		workerConfigs = append(workerConfigs, workerConfig)
+
+		workerConfigsContexts = append(workerConfigsContexts, &workerConfigContext{
+			workerConfig: workerConfig,
+			dataVolumes:  worker.DataVolumes,
+		})
 	}
 
 	cloudProfile := &gardencorev1beta1.CloudProfile{}
@@ -218,12 +229,12 @@ func (s *shoot) newValidationContext(ctx context.Context, shoot *core.Shoot) (*v
 	}
 
 	return &validationContext{
-		shoot:                shoot,
-		infrastructureConfig: infrastructureConfig,
-		controlPlaneConfig:   controlPlaneConfig,
-		workerConfigs:        workerConfigs,
-		cloudProfile:         cloudProfile,
-		cloudProfileConfig:   cloudProfileConfig,
+		shoot:                 shoot,
+		infrastructureConfig:  infrastructureConfig,
+		controlPlaneConfig:    controlPlaneConfig,
+		workerConfigsContexts: workerConfigsContexts,
+		cloudProfile:          cloudProfile,
+		cloudProfileConfig:    cloudProfileConfig,
 	}, nil
 }
 

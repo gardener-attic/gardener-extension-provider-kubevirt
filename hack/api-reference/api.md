@@ -205,6 +205,20 @@ string
 </tr>
 <tr>
 <td>
+<code>devices</code></br>
+<em>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.Devices">
+Devices
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Devices allows to customize devices attached to KubeVirt VM</p>
+</td>
+</tr>
+<tr>
+<td>
 <code>cpu</code></br>
 <em>
 kubevirt.io/client-go/api/v1.CPU
@@ -371,6 +385,73 @@ map[string]bool
 <td>
 <em>(Optional)</em>
 <p>FeatureGates contains information about enabled feature gates.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="kubevirt.provider.extensions.gardener.cloud/v1alpha1.Devices">Devices
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#kubevirt.provider.extensions.gardener.cloud/v1alpha1.WorkerConfig">WorkerConfig</a>)
+</p>
+<p>
+<p>Devices allows to fine-tune devices attached to KubeVirt VM</p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>disks</code></br>
+<em>
+[]kubevirt.io/client-go/api/v1.Disk
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Disks allows to customize disks attached to KubeVirt VM</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>rng</code></br>
+<em>
+kubevirt.io/client-go/api/v1.Rng
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Whether to have random number generator from host</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>blockMultiQueue</code></br>
+<em>
+bool
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Whether or not to enable virtio multi-queue for block devices</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>networkInterfaceMultiqueue</code></br>
+<em>
+bool
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>If specified, virtual network interfaces configured with a virtio bus will also enable the vhost multiqueue feature</p>
 </td>
 </tr>
 </tbody>

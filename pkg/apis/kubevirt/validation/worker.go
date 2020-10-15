@@ -18,13 +18,16 @@ import (
 	"fmt"
 
 	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
+	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/kubevirt"
 
+	gardenercore "github.com/gardener/gardener/pkg/apis/core"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 // ValidateWorkerConfig validates a WorkerConfig object.
-func ValidateWorkerConfig(config *apiskubevirt.WorkerConfig, fldPath *field.Path) field.ErrorList {
+func ValidateWorkerConfig(config *apiskubevirt.WorkerConfig, dataVolumes []gardenercore.DataVolume, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	if config.DNSPolicy != "" {
@@ -51,6 +54,34 @@ func ValidateWorkerConfig(config *apiskubevirt.WorkerConfig, fldPath *field.Path
 		}
 	}
 
+	if config.Devices != nil {
+		disksPath := fldPath.Child("devices").Child("disks")
+		disks := sets.NewString()
+
+		// +1 because of root-disk which is required and unique
+		volumesLen := len(dataVolumes) + 1
+
+		if disksLen := len(config.Devices.Disks); disksLen > volumesLen {
+			allErrs = append(allErrs, field.Invalid(disksPath, disksLen, "the number of disks is larger than the number of volumes"))
+		}
+
+		for i, disk := range config.Devices.Disks {
+			if disk.BootOrder != nil {
+				allErrs = append(allErrs, field.Forbidden(disksPath.Index(i).Child("bootOrder"), "cannot be set"))
+			}
+
+			if disk.Name == "" {
+				allErrs = append(allErrs, field.Required(disksPath.Index(i).Child("name"), "cannot be empty"))
+			} else if disks.Has(disk.Name) {
+				allErrs = append(allErrs, field.Invalid(disksPath.Index(i).Child("name"), disk.Name, "already exists"))
+				continue
+			} else if !hasDiskVolumeMatch(disk.Name, dataVolumes) && disk.Name != kubevirt.RootDiskName {
+				allErrs = append(allErrs, field.Invalid(disksPath.Index(i).Child("name"), disk.Name, "no matching volume"))
+			}
+			disks.Insert(disk.Name)
+		}
+	}
+
 	return allErrs
 }
 
@@ -58,4 +89,13 @@ func ValidateWorkerConfig(config *apiskubevirt.WorkerConfig, fldPath *field.Path
 func ValidateWorkerConfigUpdate(oldConfig, newConfig *apiskubevirt.WorkerConfig, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	return allErrs
+}
+
+func hasDiskVolumeMatch(diskName string, volumes []gardenercore.DataVolume) bool {
+	for _, volume := range volumes {
+		if volume.Name == diskName {
+			return true
+		}
+	}
+	return false
 }

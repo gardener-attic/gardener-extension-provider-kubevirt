@@ -69,6 +69,7 @@ var _ = Describe("Shoot validation", func() {
 					},
 					DataVolumes: []core.DataVolume{
 						{
+							Name:       "volume-1",
 							Type:       pointer.StringPtr("DataVolume"),
 							VolumeSize: "20G",
 						},
@@ -120,6 +121,19 @@ var _ = Describe("Shoot validation", func() {
 					PointTo(MatchFields(IgnoreExtras, Fields{
 						"Type":  Equal(field.ErrorTypeRequired),
 						"Field": Equal("[0].volume.type"),
+					})),
+				))
+			})
+
+			It("should forbid because worker data volume does not have a name", func() {
+				workers[0].DataVolumes[0].Name = ""
+
+				errorList := ValidateWorkers(workers, nilPath)
+
+				Expect(errorList).To(ConsistOf(
+					PointTo(MatchFields(IgnoreExtras, Fields{
+						"Type":  Equal(field.ErrorTypeRequired),
+						"Field": Equal("[0].dataVolumes[0].name"),
 					})),
 				))
 			})

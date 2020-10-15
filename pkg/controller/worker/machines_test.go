@@ -124,6 +124,8 @@ var _ = Describe("Machines", func() {
 			networkName := "default/net-conf"
 			networkSHA := "abc"
 			dnsNameserver := "8.8.8.8"
+			rootDiskName := "root-disk"
+			additionalDataVolumeName := "dv1"
 
 			images := []kubevirtv1alpha1.MachineImages{
 				{
@@ -182,6 +184,19 @@ var _ = Describe("Machines", func() {
 										APIVersion: "kubevirt.provider.extensions.gardener.cloud/v1alpha1",
 										Kind:       "WorkerConfig",
 									},
+									Devices: &kubevirtv1alpha1.Devices{
+										Disks: []kubevirtv1.Disk{
+											{
+												Name: rootDiskName,
+												DiskDevice: kubevirtv1.DiskDevice{
+													Disk: &kubevirtv1.DiskTarget{
+														Bus: "virtio",
+													},
+												},
+												Cache: kubevirtv1.CacheNone,
+											},
+										},
+									},
 									CPU: &kubevirtv1.CPU{
 										Cores:                 uint32(1),
 										Sockets:               uint32(2),
@@ -219,12 +234,35 @@ var _ = Describe("Machines", func() {
 							},
 							DataVolumes: []extensionsv1alpha1.DataVolume{
 								{
+									Name: additionalDataVolumeName,
 									Type: pointer.StringPtr("standard"),
 									Size: "10Gi",
 								},
 							},
 							UserData: userData,
 							Zones:    []string{"local-3"},
+							ProviderConfig: &runtime.RawExtension{
+								Raw: encode(&kubevirtv1alpha1.WorkerConfig{
+									TypeMeta: metav1.TypeMeta{
+										APIVersion: "kubevirt.provider.extensions.gardener.cloud/v1alpha1",
+										Kind:       "WorkerConfig",
+									},
+									Devices: &kubevirtv1alpha1.Devices{
+										Disks: []kubevirtv1.Disk{
+											{
+												Name: additionalDataVolumeName,
+												DiskDevice: kubevirtv1.DiskDevice{
+													Disk: &kubevirtv1.DiskTarget{
+														Bus: "virtio",
+													},
+												},
+												Cache: kubevirtv1.CacheNone,
+											},
+										},
+										NetworkInterfaceMultiQueue: true,
+									},
+								}),
+							},
 						},
 					},
 					SSHPublicKey: sshPublicKey,
@@ -288,6 +326,19 @@ var _ = Describe("Machines", func() {
 						},
 						OvercommitGuestOverhead: true,
 					},
+					&apiskubevirt.Devices{
+						Disks: []kubevirtv1.Disk{
+							{
+								Name: rootDiskName,
+								DiskDevice: kubevirtv1.DiskDevice{
+									Disk: &kubevirtv1.DiskTarget{
+										Bus: "virtio",
+									},
+								},
+								Cache: kubevirtv1.CacheNone,
+							},
+						},
+					},
 					&cdicorev1alpha1.DataVolumeSpec{
 						PVC: &corev1.PersistentVolumeClaimSpec{
 							AccessModes: []corev1.PersistentVolumeAccessMode{
@@ -344,6 +395,19 @@ var _ = Describe("Machines", func() {
 						},
 						OvercommitGuestOverhead: true,
 					},
+					&apiskubevirt.Devices{
+						Disks: []kubevirtv1.Disk{
+							{
+								Name: rootDiskName,
+								DiskDevice: kubevirtv1.DiskDevice{
+									Disk: &kubevirtv1.DiskTarget{
+										Bus: "virtio",
+									},
+								},
+								Cache: kubevirtv1.CacheNone,
+							},
+						},
+					},
 					&cdicorev1alpha1.DataVolumeSpec{
 						PVC: &corev1.PersistentVolumeClaimSpec{
 							AccessModes: []corev1.PersistentVolumeAccessMode{
@@ -395,6 +459,20 @@ var _ = Describe("Machines", func() {
 							corev1.ResourceMemory: resource.MustParse("8192Mi"),
 						},
 					},
+					&apiskubevirt.Devices{
+						Disks: []kubevirtv1.Disk{
+							{
+								Name: additionalDataVolumeName,
+								DiskDevice: kubevirtv1.DiskDevice{
+									Disk: &kubevirtv1.DiskTarget{
+										Bus: "virtio",
+									},
+								},
+								Cache: kubevirtv1.CacheNone,
+							},
+						},
+						NetworkInterfaceMultiQueue: true,
+					},
 					&cdicorev1alpha1.DataVolumeSpec{
 						PVC: &corev1.PersistentVolumeClaimSpec{
 							AccessModes: []corev1.PersistentVolumeAccessMode{
@@ -416,6 +494,7 @@ var _ = Describe("Machines", func() {
 					},
 					[]map[string]interface{}{
 						{
+							"name": additionalDataVolumeName,
 							"dataVolume": &cdicorev1alpha1.DataVolumeSpec{
 								PVC: &corev1.PersistentVolumeClaimSpec{
 									AccessModes: []corev1.PersistentVolumeAccessMode{
@@ -651,6 +730,7 @@ func createMachineClass(
 	classTemplate map[string]interface{},
 	name, zone string,
 	resources *kubevirtv1.ResourceRequirements,
+	devices *apiskubevirt.Devices,
 	rootVolume *cdicorev1alpha1.DataVolumeSpec,
 	additionalVolumes []map[string]interface{},
 	cpu *kubevirtv1.CPU,
@@ -667,6 +747,7 @@ func createMachineClass(
 	out["name"] = name
 	out["zone"] = zone
 	out["resources"] = resources
+	out["devices"] = devices
 	out["rootVolume"] = rootVolume
 	out["additionalVolumes"] = additionalVolumes
 	out["cpu"] = cpu

@@ -188,12 +188,13 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 		// Build additional volumes
 		var additionalVolumes []map[string]interface{}
 		for _, volume := range pool.DataVolumes {
-			className, size, err := w.getStorageClassNameAndSize(*volume.Type, volume.Size)
+			storageClassName, size, err := w.getStorageClassNameAndSize(*volume.Type, volume.Size)
 			if err != nil {
 				return err
 			}
 			additionalVolumes = append(additionalVolumes, map[string]interface{}{
-				"dataVolume": buildDataVolumeSpecWithBlankSource(className, size),
+				"name":       volume.Name,
+				"dataVolume": buildDataVolumeSpecWithBlankSource(storageClassName, size),
 			})
 		}
 
@@ -217,6 +218,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 				"region":            w.worker.Spec.Region,
 				"zone":              zone,
 				"resources":         resourceRequirements,
+				"devices":           workerConfig.Devices,
 				"rootVolume":        rootVolume,
 				"additionalVolumes": additionalVolumes,
 				"sshKeys":           []string{string(w.worker.Spec.SSHPublicKey)},
