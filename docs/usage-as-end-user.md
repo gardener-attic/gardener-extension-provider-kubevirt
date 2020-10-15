@@ -259,11 +259,11 @@ metadata:
   namespace: garden-dev
 spec:
   cloudProfileName: kubevirt
-  region: europe-west1
   secretBindingName: provider-cluster-kubeconfig
+  region: europe-west1
   provider:
     type: kubevirt
-#     infrastructureConfig:
+#   infrastructureConfig:
 #     apiVersion: kubevirt.provider.extensions.gardener.cloud/v1alpha1
 #     kind: InfrastructureConfig
 #     networks:
@@ -284,19 +284,19 @@ spec:
         image:
           name: ubuntu
           version: "18.04"
+      minimum: 1
+      maximum: 2
       volume:
         type: default
         size: 20Gi
-      dataVolumes:
-      - name: volume-1
-        type: default
-        size: 10Gi
+#     dataVolumes:
+#     - name: volume-1
+#       type: default
+#       size: 10Gi
 #     providerConfig:
 #       apiVersion: kubevirt.provider.extensions.gardener.cloud/v1alpha1
 #       kind: WorkerConfig
 #       disablePreAllocatedDataVolumes: true
-      minimum: 1
-      maximum: 2
       zones:
       - europe-west1-c
   networking:

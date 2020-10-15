@@ -7,9 +7,6 @@ spec:
   providerConfig:
     apiVersion: kubevirt.provider.extensions.gardener.cloud/v1alpha1
     kind: CloudProfileConfig
-    machineDeploymentConfig:
-    - machineTypeName: standard-1
-    - machineTypeName: standard-2
     machineImages:
     - name: ubuntu
       versions:
@@ -17,7 +14,8 @@ spec:
         sourceURL: "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img"
   kubernetes:
     versions:
-    - version: "1.17.5"
+    - version: 1.18.5
+    - version: 1.17.8
   machineImages:
   - name: ubuntu
     versions:
@@ -27,19 +25,130 @@ spec:
     cpu: "1"
     gpu: "0"
     memory: 4Gi
-    storage:
-      class: gardener.cloud-fast
-      type: DataVolume
-      size: 20Gi
     usable: true
   - name: standard-2
     cpu: "2"
     gpu: "0"
     memory: 8Gi
-    storage:
-      class: gardener.cloud-fast
-      type: DataVolume
-      size: 20Gi
+    usable: true
+  volumeTypes:
+  - name: default
+    class: default
     usable: true
   regions:
-  - name: local
+  - name: asia-east1
+    zones:
+    - name: asia-east1-a
+    - name: asia-east1-b
+    - name: asia-east1-c
+  - name: asia-east2
+    zones:
+    - name: asia-east2-c
+    - name: asia-east2-b
+    - name: asia-east2-a
+  - name: asia-northeast1
+    zones:
+    - name: asia-northeast1-a
+    - name: asia-northeast1-b
+    - name: asia-northeast1-c
+  - name: asia-northeast2
+    zones:
+    - name: asia-northeast2-a
+    - name: asia-northeast2-b
+    - name: asia-northeast2-c
+  - name: asia-northeast3
+    zones:
+    - name: asia-northeast3-a
+    - name: asia-northeast3-b
+    - name: asia-northeast3-c
+  - name: asia-south1
+    zones:
+    - name: asia-south1-b
+    - name: asia-south1-a
+    - name: asia-south1-c
+  - name: asia-southeast1
+    zones:
+    - name: asia-southeast1-a
+    - name: asia-southeast1-b
+    - name: asia-southeast1-c
+  - name: australia-southeast1
+    zones:
+    - name: australia-southeast1-c
+    - name: australia-southeast1-a
+    - name: australia-southeast1-b
+  - name: europe-north1
+    zones:
+    - name: europe-north1-b
+    - name: europe-north1-c
+    - name: europe-north1-a
+  - name: europe-west1
+    zones:
+    - name: europe-west1-b
+    - name: europe-west1-c
+    - name: europe-west1-d
+  - name: europe-west2
+    zones:
+    - name: europe-west2-a
+    - name: europe-west2-b
+    - name: europe-west2-c
+  - name: europe-west3
+    zones:
+    - name: europe-west3-c
+    - name: europe-west3-a
+    - name: europe-west3-b
+  - name: europe-west4
+    zones:
+    - name: europe-west4-c
+    - name: europe-west4-b
+    - name: europe-west4-a
+  - name: europe-west5
+    zones:
+    - name: europe-west5-a
+    - name: europe-west5-b
+    - name: europe-west5-c
+  - name: europe-west6
+    zones:
+    - name: europe-west6-b
+    - name: europe-west6-c
+    - name: europe-west6-a
+  - name: northamerica-northeast1
+    zones:
+    - name: northamerica-northeast1-a
+    - name: northamerica-northeast1-b
+    - name: northamerica-northeast1-c
+  - name: southamerica-east1
+    zones:
+    - name: southamerica-east1-a
+    - name: southamerica-east1-b
+    - name: southamerica-east1-c
+  - name: us-central1
+    zones:
+    - name: us-central1-a
+    - name: us-central1-b
+    - name: us-central1-c
+    - name: us-central1-f
+  - name: us-east1
+    zones:
+    - name: us-east1-b
+    - name: us-east1-c
+    - name: us-east1-d
+  - name: us-east4
+    zones:
+    - name: us-east4-a
+    - name: us-east4-b
+    - name: us-east4-c
+  - name: us-west1
+    zones:
+    - name: us-west1-a
+    - name: us-west1-b
+    - name: us-west1-c
+  - name: us-west2
+    zones:
+    - name: us-west2-c
+    - name: us-west2-b
+    - name: us-west2-a
+  - name: us-west3
+    zones:
+    - name: us-west3-a
+    - name: us-west3-b
+    - name: us-west3-c

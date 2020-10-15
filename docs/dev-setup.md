@@ -1,8 +1,8 @@
 # Development Setup
 
-This document describes the recommended development setup for the [Kubevirt provider extension](https://github.com/gardener/gardener-extension-provider-kubevirt). Following the guidelines presented here would allow you to test the full Gardener reconciliation and deletion flows with the Kubevirt provider extension and the [Kubevirt MCM extension](https://github.com/gardener/machine-controller-manager-provider-kubevirt). 
+This document describes the recommended development setup for the [KubeVirt provider extension](https://github.com/gardener/gardener-extension-provider-kubevirt). Following the guidelines presented here would allow you to test the full Gardener reconciliation and deletion flows with the KubeVirt provider extension and the [KubeVirt MCM extension](https://github.com/gardener/machine-controller-manager-provider-kubevirt). 
 
-In this setup, only Gardener itself is running in your local development cluster. All other components, as well as Kubevirt VMs, are deployed and run on external clusters, which avoids high CPU and memory load on your local laptop. 
+In this setup, only Gardener itself is running in your local development cluster. All other components, as well as KubeVirt VMs, are deployed and run on external clusters, which avoids high CPU and memory load on your local laptop. 
 
 ## Prerequisites
 
@@ -40,7 +40,7 @@ You can generate or update the `controller-registrations.yaml` file out of your 
 gem ensure --requirements dev/requirements.yaml --controller-registrations dev/controller-registrations.yaml
 ```
 
-After generating or updating the `controller-registrations.yaml` file, review it and make sure all versions are the ones you would like to use for your tests. For example, if you are working on a PR for the Kubevirt provider extension, in addition to specifying the revision in your fork in `requirements.yaml`, you may need to change the version from `0.1.0-dev` to something unique to you or your PR, e.g. `0.1.0-dev-johndoe`. You can also add `pullPolicy: Always` to ensure that if you push a new extension image with that version and delete the corresponding pod, the new image will always be pulled when the pod is recreated.
+After generating or updating the `controller-registrations.yaml` file, review it and make sure all versions are the ones you would like to use for your tests. For example, if you are working on a PR for the KubeVirt provider extension, in addition to specifying the revision in your fork in `requirements.yaml`, you may need to change the version from `0.1.0-dev` to something unique to you or your PR, e.g. `0.1.0-dev-johndoe`. You can also add `pullPolicy: Always` to ensure that if you push a new extension image with that version and delete the corresponding pod, the new image will always be pulled when the pod is recreated.
 
 Once you are satisfied with your controller registrations, apply the `controller-registrations.yaml` to your local Gardener:
 
@@ -74,9 +74,9 @@ You can create such a cluster with Gardener on GCP (and possibly other cloud pro
 ```
 gcloud compute disks create ubuntu-disk1 
   --image-project ubuntu-os-cloud \
-  --image ubuntu-1804-bionic-v20200218 \
+  --image ubuntu-1804-bionic-v20200916 \
   --zone us-central1-b
-gcloud compute images create ubuntu-1804-bionic-v20200218-vmx-enabled \
+gcloud compute images create ubuntu-1804-bionic-v20200916-vmx-enabled \
   --source-disk ubuntu-disk1 \
   --source-disk-zone us-central1-b \
   --licenses "https://compute.googleapis.com/compute/v1/projects/vm-options/global/licenses/enable-vmx"
@@ -97,7 +97,7 @@ Once the image has been created, to create the provider cluster, you could simpl
     kubectl apply -f dev/secretbinding-shoot-operator-gcp.yaml
     ```
 
-3. Create the GCP shoot itself. See [shoot-gcp-vmx.yaml](manifests/shoot-gcp-vmx.yaml) as an example. Note that this shoot should use the image with name `ubuntu` and version `18.4.20200228-vmx` from the custom GCP cloud profile you created previously. Also, please rename the shoot to contain an unique prefix such as your github username, e.g. `johndoe-gcp-vmx`, to avoid naming conflicts in GCP.
+3. Create the GCP shoot itself. See [shoot-gcp-vmx.yaml](manifests/shoot-gcp-vmx.yaml) as an example. Note that this shoot should use the image with name `ubuntu` and version `18.4.20200916-vmx` from the custom GCP cloud profile you created previously. Also, please rename the shoot to contain an unique prefix such as your github username, e.g. `johndoe-gcp-vmx`, to avoid naming conflicts in GCP.
 
     ```shell script
     kubectl apply -f dev/shoot-gcp-vmx.yaml
@@ -111,23 +111,34 @@ Once the image has been created, to create the provider cluster, you could simpl
     kubectl get secret <prefix>-gcp-vmx.kubeconfig -n garden-dev -o jsonpath={.data.kubeconfig} | base64 -d > dev/kubeconfig-gcp-vmx.yaml
     ```
    
-5. Install kubevirt and CDI in this cluster by executing the [install-kubevirt.sh](scripts/install-kubevirt.sh) script:
+5. Install KubeVirt and CDI in this cluster by executing the [install-kubevirt.sh](../hack/kubevirt/install-kubevirt.sh) script:
 
     ```shell script
     export KUBECONFIG=dev/kubeconfig-gcp-vmx.yaml
     hack/kubevirt/install-kubevirt.sh
     ```
+   
+6. Optionally, to test networking features, install [Multus CNI](https://intel.github.io/multus-cni/doc/quickstart.html) as described in its documentation, or by applying the provided [multus.yaml](../hack/kubevirt/multus.yaml) manifest.
+
+    ```shell script
+    export KUBECONFIG=dev/kubeconfig-gcp-vmx.yaml
+    kubectl apply -f hack/kubevirt/multus.yaml
+    ```
+
+    **Note:** In order to use any additional CNI plugins, the plugin binaries must be present in the `/opt/cni/bin` directory of the provider cluster nodes. For testing purposes, they can be installed manually by downloading a [containernetworking/plugins](https://github.com/containernetworking/plugins) release and copying the needed plugins to the `/opt/cni/bin` directory of each provider cluster node.
 
 ## Testing the Gardener Reconciliation Flow
 
-To test the Gardener reconciliation flow with the Kubevirt provider extensions, create the Kubevirt shoot cluster in your local `dev` project, by following these steps:
+To test the Gardener reconciliation flow with the KubeVirt provider extensions, create the KubeVirt shoot cluster in your local `dev` project, by following these steps:
 
-1. Create the Kubevirt cloud profile, for example [cloudprofile-kubevirt.yaml](manifests/cloudprofile-kubevirt.yaml).
+1. Create the KubeVirt cloud profile, for example [cloudprofile-kubevirt.yaml](manifests/cloudprofile-kubevirt.yaml).
 
     ```shell script
     kubectl apply -f dev/cloudprofile-kubevirt.yaml
     ```
 
+   **Note:** The example cloud profile is intentionally rather simple and does not take advantage of some of the features supported by the KubeVirt provider extension. To test these features, modify the cloud profile manifest accordingly. For more information, see [Using the KubeVirt provider extension with Gardener as operator](usage-as-operator.md).
+   
 2. Create the shoot secret and secret binding. You should create a secret containing the kubeconfig for your provider cluster, and a corresponding secret binding:
 
     ```shell script
@@ -135,16 +146,18 @@ To test the Gardener reconciliation flow with the Kubevirt provider extensions, 
     kubectl apply -f dev/secretbinding-kubevirt-credentials.yaml
     ```
 
-3. Create the Kubevirt shoot itself. See [shoot-kubevirt.yaml](manifests/shoot-kubevirt.yaml) as an example. Note that the nodes CIDR for this shoot must be the same range as the pods CIDR of your provider cluster.
+3. Create the KubeVirt shoot itself. See [shoot-kubevirt.yaml](manifests/shoot-kubevirt.yaml) as an example. Note that the nodes CIDR for this shoot must be the same range as the pods CIDR of your provider cluster.
 
     ```shell script
     kubectl apply -f dev/shoot-kubevirt.yaml
     ```
    
+   **Note:** The example shoot is intentionally very simple and does not take advantage of many of the features supported by the KubeVirt provider extension. To test these features, modify the shoot manifest accordingly. For more information, see [Using the KubeVirt provider extension with Gardener as end-user](usage-as-end-user.md).
+   
 4. During the shoot reconciliation by your local `gardenlet`, you may want to:
 
     * Monitor the `gardenlet` logs in your local console where `gardenlet` is running.
-    * Connect to the seed to monitor the shoot namespace `shoot--dev--kubevirt` and the logs of the Kubevirt provider extension in the `extension-provider-kubevirt-*` namespace.
+    * Connect to the seed to monitor the shoot namespace `shoot--dev--kubevirt` and the logs of the KubeVirt provider extension in the `extension-provider-kubevirt-*` namespace.
     * Connect to the provider cluster to monitor the `default` namespace where VMs and VMIs are being created.
 
 5. Once the shoot has been successfully reconciled, get its kubeconfig by executing:
@@ -153,13 +166,13 @@ To test the Gardener reconciliation flow with the Kubevirt provider extensions, 
     kubectl get secret kubevirt.kubeconfig -n garden-dev -o jsonpath={.data.kubeconfig} | base64 -d > dev/kubeconfig-kubevirt.yaml
     ```
    
-    At this point, you may want to connect to the Kubevirt shoot and check if it's usable.
+    At this point, you may want to connect to the KubeVirt shoot and check if it's usable.
     
 ## Testing the Gardener Deletion Flow
 
-To test the Gardener deletion flow with the Kubevirt provider extensions, delete the Kubevirt shoot cluster in your local `dev` project, by following these steps:
+To test the Gardener deletion flow with the KubeVirt provider extensions, delete the KubeVirt shoot cluster in your local `dev` project, by following these steps:
 
-1. Delete the Kubevirt shoot itself using the [delete](https://github.com/gardener/gardener/blob/master/hack/usage/delete) script.
+1. Delete the KubeVirt shoot itself using the [delete](https://github.com/gardener/gardener/blob/master/hack/usage/delete) script.
 
     ```shell script
     kubectl annotate shoot kubevirt -n garden-dev confirmation.gardener.cloud/deletion=1
@@ -169,5 +182,5 @@ To test the Gardener deletion flow with the Kubevirt provider extensions, delete
 2. During the shoot deletion by your local `gardenlet`, you may want to:
 
     * Monitor the `gardenlet` logs in your local console where `gardenlet` is running.
-    * Connect to the seed to monitor the shoot namespace `shoot--dev--kubevirt` and the logs of the Kubevirt provider extension in the `extension-provider-kubevirt-*` namespace.
+    * Connect to the seed to monitor the shoot namespace `shoot--dev--kubevirt` and the logs of the KubeVirt provider extension in the `extension-provider-kubevirt-*` namespace.
     * Connect to the provider cluster to monitor the `default` namespace where VMs and VMIs are being created.

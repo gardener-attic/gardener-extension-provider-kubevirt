@@ -3,92 +3,64 @@ kind: CloudProfile
 metadata:
   name: gcp
 spec:
-  kubernetes:
-    versions:
-    - version: 1.18.2
-    - version: 1.17.5
-    - version: 1.16.9
-  machineImages:
-  - name: ubuntu
-    versions:
-    - version: 18.4.20200228
-    - version: 18.4.20200228-vmx
-  machineTypes:
-  - cpu: "2"
-    gpu: "0"
-    memory: 7500Mi
-    name: n1-standard-2
-    usable: true
-  - cpu: "4"
-    gpu: "0"
-    memory: 15Gi
-    name: n1-standard-4
-    usable: true
-  - cpu: "8"
-    gpu: "0"
-    memory: 30Gi
-    name: n1-standard-8
-    usable: true
-  - cpu: "16"
-    gpu: "0"
-    memory: 60Gi
-    name: n1-standard-16
-    usable: true
-  - cpu: "32"
-    gpu: "0"
-    memory: 120Gi
-    name: n1-standard-32
-    usable: true
-  - cpu: "64"
-    gpu: "0"
-    memory: 240Gi
-    name: n1-standard-64
-    usable: true
-  - cpu: "2"
-    gpu: "0"
-    memory: 13Gi
-    name: n1-highmem-2
-    usable: true
-  - cpu: "4"
-    gpu: "0"
-    memory: 26Gi
-    name: n1-highmem-4
-    usable: true
-  - cpu: "8"
-    gpu: "0"
-    memory: 52Gi
-    name: n1-highmem-8
-    usable: true
-  - cpu: "16"
-    gpu: "0"
-    memory: 104Gi
-    name: n1-highmem-16
-    usable: true
-  - cpu: "32"
-    gpu: "0"
-    memory: 208Gi
-    name: n1-highmem-32
-    usable: true
-  - cpu: "64"
-    gpu: "0"
-    memory: 416Gi
-    name: n1-highmem-64
-    usable: true
-  - cpu: "96"
-    gpu: "0"
-    memory: 624Gi
-    name: n1-highmem-96
-    usable: true
+  type: gcp
   providerConfig:
     apiVersion: gcp.provider.extensions.gardener.cloud/v1alpha1
     kind: CloudProfileConfig
     machineImages:
     - name: ubuntu
       versions:
-      - image: projects/ubuntu-os-cloud/global/images/ubuntu-1804-bionic-v20200218
-        version: 18.4.20200228
+      - image: projects/ubuntu-os-cloud/global/images/ubuntu-1804-bionic-v20200916
+        version: 18.4.20200916
       - image: <path to custom ubuntu image>
-        version: 18.4.20200228-vmx
+        version: 18.4.20200916-vmx
+  kubernetes:
+    versions:
+    - version: 1.18.5
+    - version: 1.17.8
+  machineImages:
+  - name: ubuntu
+    versions:
+    - version: 18.4.20200916
+    - version: 18.4.20200916-vmx
+  machineTypes:
+  - name: n1-standard-2
+    cpu: "2"
+    gpu: "0"
+    memory: 7500Mi
+    usable: true
+  - name: n1-standard-4
+    cpu: "4"
+    gpu: "0"
+    memory: 15Gi
+    usable: true
+  - name: n1-standard-8
+    cpu: "8"
+    gpu: "0"
+    memory: 30Gi
+    usable: true
+  - name: n1-standard-16
+    cpu: "16"
+    gpu: "0"
+    memory: 60Gi
+    usable: true
+  - name: n1-standard-32
+    cpu: "32"
+    gpu: "0"
+    memory: 120Gi
+    usable: true
+  - name: n1-standard-64
+    cpu: "64"
+    gpu: "0"
+    memory: 240Gi
+    usable: true
+  volumeTypes:
+  - name: pd-standard
+    class: standard
+    usable: true
+  - name: pd-ssd
+    class: premium
+    usable: true
   regions:
   - name: asia-east1
     zones:
@@ -206,11 +178,3 @@ spec:
     - name: us-west3-a
     - name: us-west3-b
     - name: us-west3-c
-  type: gcp
-  volumeTypes:
-  - class: standard
-    name: pd-standard
-    usable: true
-  - class: premium
-    name: pd-ssd
-    usable: true
