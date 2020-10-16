@@ -137,6 +137,29 @@ An example `WorkerConfig` for the KubeVirt extension looks as follows:
 ```yaml
 apiVersion: kubevirt.provider.extensions.gardener.cloud/v1alpha1
 kind: WorkerConfig
+devices:
+  # disks allow to customize disks attached to KubeVirt VM
+  # check [link](https://kubevirt.io/user-guide/#/creation/disks-and-volumes?id=disks-and-volumes) for full specification and options
+  disks:
+  # name must match defined dataVolume name
+  # to modify root volume the name must be equal to 'root-disk'
+  - name: root-disk # modify root-disk
+    # disk type, check [link](https://kubevirt.io/user-guide/#/creation/disks-and-volumes?id=disks) for more types
+    disk:
+      # bus indicates the type of disk device to emulate.
+      bus: virtio
+    # set disk device cache
+    cache: writethrough
+    # dedicatedIOThread indicates this disk should have an exclusive IO Thread
+    dedicatedIOThread: true
+  - name: volume-1 # modify dataVolume named volume-1
+    disk: {}
+  # whether to have random number generator from host
+  rng: {}
+  # whether or not to enable virtio multi-queue for block devices
+  blockMultiQueue: true
+  # if specified, virtual network interfaces configured with a virtio bus will also enable the vhost multiqueue feature
+  networkInterfaceMultiQueue: true
 cpu:
   # number of cores inside the VMI
   cores: 1

@@ -48,6 +48,9 @@ const (
 	MachineControllerManagerMonitoringConfigName = "machine-controller-manager-monitoring-config"
 	// MachineControllerManagerVpaName is the name of the VerticalPodAutoscaler of the machine-controller-manager deployment.
 	MachineControllerManagerVpaName = "machine-controller-manager-vpa"
+
+	// Root disk name
+	RootDiskName = "root-disk"
 )
 
 var (

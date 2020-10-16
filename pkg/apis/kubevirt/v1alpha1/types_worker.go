@@ -27,6 +27,9 @@ import (
 type WorkerConfig struct {
 	metav1.TypeMeta `json:",inline"`
 
+	// Devices allows to customize devices attached to KubeVirt VM
+	// +optional
+	Devices *Devices `json:"devices,omitempty"`
 	// CPU allows specifying the CPU topology of KubeVirt VM.
 	// +optional
 	CPU *kubevirtv1.CPU `json:"cpu,omitempty"`
@@ -58,6 +61,22 @@ type WorkerConfig struct {
 	// all memory is in use on a node. Defaults to false.
 	// +optional
 	OvercommitGuestOverhead bool `json:"overcommitGuestOverhead,omitempty"`
+}
+
+// Devices allows to fine-tune devices attached to KubeVirt VM
+type Devices struct {
+	// Disks allows to customize disks attached to KubeVirt VM
+	// +optional
+	Disks []kubevirtv1.Disk `json:"disks,omitempty"`
+	// Whether to have random number generator from host
+	// +optional
+	Rng *kubevirtv1.Rng `json:"rng,omitempty"`
+	// Whether or not to enable virtio multi-queue for block devices
+	// +optional
+	BlockMultiQueue bool `json:"blockMultiQueue,omitempty"`
+	// If specified, virtual network interfaces configured with a virtio bus will also enable the vhost multiqueue feature
+	// +optional
+	NetworkInterfaceMultiQueue bool `json:"networkInterfaceMultiqueue,omitempty"`
 }
 
 // +genclient

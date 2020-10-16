@@ -26,8 +26,9 @@ import (
 type WorkerConfig struct {
 	metav1.TypeMeta
 
+	// Devices allows to customize devices attached to KubeVirt VM
+	Devices *Devices
 	// CPU allows specifying the CPU topology of KubeVirt VM.
-	// +optional
 	CPU *kubevirtv1.CPU
 	// Memory allows specifying the VirtualMachineInstance memory features like huge pages and guest memory settings.
 	// Each feature might require appropriate FeatureGate enabled.
@@ -52,6 +53,18 @@ type WorkerConfig struct {
 	// put the overhead only into the container's memory limit. This can lead to crashes if
 	// all memory is in use on a node. Defaults to false.
 	OvercommitGuestOverhead bool
+}
+
+// Devices allows to fine-tune devices attached to KubeVirt VM
+type Devices struct {
+	// Disks allows to customize disks attached to KubeVirt VM
+	Disks []kubevirtv1.Disk
+	// Whether to have random number generator from host
+	Rng *kubevirtv1.Rng
+	// Whether or not to enable virtio multi-queue for block devices
+	BlockMultiQueue bool
+	// If specified, virtual network interfaces configured with a virtio bus will also enable the vhost multiqueue feature
+	NetworkInterfaceMultiQueue bool
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
