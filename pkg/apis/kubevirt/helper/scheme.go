@@ -160,3 +160,14 @@ func GetInfrastructureStatus(w *extensionsv1alpha1.Worker) (*apiskubevirt.Infras
 	}
 	return status, nil
 }
+
+// GetWorkerStatus extracts the WorkerStatus from the Status section of the given Worker.
+func GetWorkerStatus(w *extensionsv1alpha1.Worker) (*apiskubevirt.WorkerStatus, error) {
+	status := &apiskubevirt.WorkerStatus{}
+	if w.Status.ProviderStatus != nil && w.Status.ProviderStatus.Raw != nil {
+		if _, _, err := decoder.Decode(w.Status.ProviderStatus.Raw, nil, status); err != nil {
+			return nil, errors.Wrapf(err, "could not decode providerStatus of worker %q", kutil.ObjectName(w))
+		}
+	}
+	return status, nil
+}

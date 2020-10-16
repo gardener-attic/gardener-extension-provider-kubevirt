@@ -25,15 +25,20 @@ import (
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/features"
 	gardenletfeatures "github.com/gardener/gardener/pkg/gardenlet/features"
+	"github.com/gardener/gardener/pkg/operation/botanist/component"
 	"github.com/gardener/gardener/pkg/operation/common"
 	"github.com/gardener/gardener/pkg/utils"
+	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/secrets"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
+	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
+	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime"
+	autoscalingv1beta2 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -56,7 +61,34 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 		usersDashboards     = strings.Builder{}
 	)
 
-	// Find extensions provider-specific monitoring configuration
+	// Fetch component-specific monitoring configuration
+	monitoringComponents := []component.MonitoringComponent{
+		b.Shoot.Components.ControlPlane.KubeScheduler,
+	}
+
+	if b.Shoot.WantsClusterAutoscaler {
+		monitoringComponents = append(monitoringComponents, b.Shoot.Components.ControlPlane.ClusterAutoscaler)
+	}
+
+	for _, component := range monitoringComponents {
+		componentsScrapeConfigs, err := component.ScrapeConfigs()
+		if err != nil {
+			return err
+		}
+		for _, config := range componentsScrapeConfigs {
+			scrapeConfigs.WriteString(fmt.Sprintf("- %s\n", indent(config, 2)))
+		}
+
+		componentsAlertingRules, err := component.AlertingRules()
+		if err != nil {
+			return err
+		}
+		for filename, rule := range componentsAlertingRules {
+			alertingRules.WriteString(fmt.Sprintf("%s: |\n  %s\n", filename, indent(rule, 2)))
+		}
+	}
+
+	// Fetch extensions provider-specific monitoring configuration
 	existingConfigMaps := &corev1.ConfigMapList{}
 	if err := b.K8sSeedClient.Client().List(ctx, existingConfigMaps,
 		client.InNamespace(b.Shoot.SeedNamespace),
@@ -120,9 +152,6 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 			},
 			"rules": map[string]interface{}{
 				"optional": map[string]interface{}{
-					"cluster-autoscaler": map[string]interface{}{
-						"enabled": b.Shoot.WantsClusterAutoscaler,
-					},
 					"alertmanager": map[string]interface{}{
 						"enabled": b.Shoot.WantsAlertmanager,
 					},
@@ -145,15 +174,10 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 				"name":                b.Shoot.Info.Name,
 				"project":             b.Garden.Project.Name,
 			},
-			"ignoreAlerts": b.Shoot.IgnoreAlerts,
-			"alerting":     alerting,
-			"extensions": map[string]interface{}{
-				"rules":         alertingRules.String(),
-				"scrapeConfigs": scrapeConfigs.String(),
-			},
-		}
-		kubeStateMetricsSeedConfig = map[string]interface{}{
-			"replicas": b.Shoot.GetReplicas(1),
+			"ignoreAlerts":            b.Shoot.IgnoreAlerts,
+			"alerting":                alerting,
+			"additionalRules":         alertingRules.String(),
+			"additionalScrapeConfigs": scrapeConfigs.String(),
 		}
 		kubeStateMetricsShootConfig = map[string]interface{}{
 			"replicas": b.Shoot.GetReplicas(1),
@@ -182,10 +206,6 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	kubeStateMetricsSeed, err := b.InjectSeedShootImages(kubeStateMetricsSeedConfig, common.KubeStateMetricsImageName)
-	if err != nil {
-		return err
-	}
 	kubeStateMetricsShoot, err := b.InjectSeedShootImages(kubeStateMetricsShootConfig, common.KubeStateMetricsImageName)
 	if err != nil {
 		return err
@@ -198,8 +218,13 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 			},
 		},
 		"prometheus":               prometheus,
-		"kube-state-metrics-seed":  kubeStateMetricsSeed,
 		"kube-state-metrics-shoot": kubeStateMetricsShoot,
+	}
+
+	// TODO: (wyb1) Remove in next minor release
+	err = b.DeleteKubeStateMetricsSeed(ctx)
+	if err != nil {
+		return err
 	}
 
 	if err := b.K8sSeedClient.ChartApplier().Apply(ctx, filepath.Join(common.ChartPath, "seed-monitoring", "charts", "core"), b.Shoot.SeedNamespace, fmt.Sprintf("%s-monitoring", b.Shoot.SeedNamespace), kubernetes.Values(coreValues)); err != nil {
@@ -397,6 +422,46 @@ func (b *Botanist) deployGrafanaCharts(ctx context.Context, role, dashboards, ba
 	return b.K8sSeedClient.ChartApplier().Apply(ctx, filepath.Join(common.ChartPath, "seed-monitoring", "charts", "grafana"), b.Shoot.SeedNamespace, fmt.Sprintf("%s-monitoring", b.Shoot.SeedNamespace), kubernetes.Values(values))
 }
 
+// TODO: (wyb1) Delete in next minor release
+// DeleteKubeStateMetricsSeed will delete everything related to the kube-state-metrics-seed deployment
+// present in the shoot namespaces.
+func (b *Botanist) DeleteKubeStateMetricsSeed(ctx context.Context) error {
+	objects := []runtime.Object{
+		&corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "kube-state-metrics-seed",
+			},
+		},
+		&rbacv1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "kube-state-metrics-seed",
+			},
+		},
+		&corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "kube-state-metrics-seed",
+			},
+		},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "kube-state-metrics-seed",
+			},
+		},
+		&autoscalingv1beta2.VerticalPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "kube-state-metrics-seed-vpa",
+			},
+		},
+	}
+
+	return kutil.DeleteObjects(ctx, b.K8sSeedClient.Client(), objects...)
+}
+
 // DeleteSeedMonitoring will delete the monitoring stack from the Seed cluster to avoid phantom alerts
 // during the deletion process. More precisely, the Alertmanager and Prometheus StatefulSets will be
 // deleted.
@@ -405,58 +470,122 @@ func (b *Botanist) DeleteSeedMonitoring(ctx context.Context) error {
 		return err
 	}
 
-	if err := common.DeleteGrafanaByRole(b.K8sSeedClient, b.Shoot.SeedNamespace, common.GrafanaOperatorsRole); err != nil {
+	if err := common.DeleteGrafanaByRole(ctx, b.K8sSeedClient, b.Shoot.SeedNamespace, common.GrafanaOperatorsRole); err != nil {
 		return err
 	}
 
-	if err := common.DeleteGrafanaByRole(b.K8sSeedClient, b.Shoot.SeedNamespace, common.GrafanaUsersRole); err != nil {
+	if err := common.DeleteGrafanaByRole(ctx, b.K8sSeedClient, b.Shoot.SeedNamespace, common.GrafanaUsersRole); err != nil {
 		return err
 	}
 
-	for _, obj := range []struct {
-		apiGroup string
-		version  string
-		kind     string
-		name     string
-	}{
-		{"", "v1", "ServiceAccount", "kube-state-metrics-seed"},
-		{"", "v1", "RoleBinding", "kube-state-metrics-seed"},
-		{"", "v1", "Service", "kube-state-metrics-seed"},
-		{"apps", "v1", "Deployment", "kube-state-metrics-seed"},
-		{"autoscaling.k8s.io", "v1beta2", "VerticalPodAutoscaler", "kube-state-metrics-seed-vpa"},
-
-		{"", "v1", "Service", "kube-state-metrics"},
-		{"autoscaling.k8s.io", "v1beta2", "VerticalPodAutoscaler", "kube-state-metrics-vpa"},
-		{"apps", "v1", "Deployment", "kube-state-metrics"},
-
-		{"networking", "v1", "NetworkPolicy", "allow-from-prometheus"},
-		{"networking", "v1", "NetworkPolicy", "allow-prometheus"},
-		{"", "v1", "ConfigMap", "prometheus-config"},
-		{"", "v1", "ConfigMap", "prometheus-rules"},
-		{"", "v1", "ConfigMap", "blackbox-exporter-config-prometheus"},
-		{"", "v1", "Secret", "prometheus-basic-auth"},
-		{"extensions", "v1beta1", "Ingress", "prometheus"},
-		{"networking", "v1", "Ingress", "prometheus"},
-		{"autoscaling.k8s.io", "v1beta2", "VerticalPodAutoscaler", "prometheus-vpa"},
-		{"", "v1", "ServiceAccount", "prometheus"},
-		{"", "v1", "Service", "prometheus"},
-		{"", "v1", "Service", "prometheus-web"},
-		{"apps", "v1", "StatefulSet", "prometheus"},
-		{"rbac", "v1", "ClusterRoleBinding", "prometheus-" + b.Shoot.SeedNamespace},
-		{"", "v1", "PersistentVolumeClaim", "prometheus-db-prometheus-0"},
-	} {
-		u := &unstructured.Unstructured{}
-		u.SetName(obj.name)
-		u.SetNamespace(b.Shoot.SeedNamespace)
-		u.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   obj.apiGroup,
-			Version: obj.version,
-			Kind:    obj.kind,
-		})
-		if err := b.K8sSeedClient.Client().Delete(ctx, u); client.IgnoreNotFound(err) != nil && !meta.IsNoMatchError(err) {
-			return err
-		}
+	// TODO: (wyb1) Delete in next minor release
+	if err := b.DeleteKubeStateMetricsSeed(ctx); err != nil {
+		return err
 	}
 
-	return nil
+	objects := []runtime.Object{
+		&corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "kube-state-metrics",
+			},
+		},
+		&autoscalingv1beta2.VerticalPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "kube-state-metrics-vpa",
+			},
+		},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "kube-state-metrics",
+			},
+		},
+
+		&networkingv1.NetworkPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "allow-from-prometheus",
+			},
+		},
+		&networkingv1.NetworkPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "allow-prometheus",
+			},
+		},
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "prometheus-config",
+			},
+		},
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "prometheus-rules",
+			},
+		},
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "blackbox-exporter-config-prometheus",
+			},
+		},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "prometheus-basic-auth",
+			},
+		},
+		&extensionsv1beta1.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "prometheus",
+			},
+		},
+		&autoscalingv1beta2.VerticalPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "prometheus-vpa",
+			},
+		},
+		&corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "prometheus",
+			},
+		},
+		&corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "prometheus-web",
+			},
+		},
+		&appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "prometheus",
+			},
+		},
+		&rbacv1.ClusterRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "prometheus-" + b.Shoot.SeedNamespace,
+			},
+		},
+		&corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: b.Shoot.SeedNamespace,
+				Name:      "prometheus-db-prometheus-0",
+			},
+		},
+	}
+
+	return kutil.DeleteObjects(ctx, b.K8sSeedClient.Client(), objects...)
+}
+
+func indent(str string, spaces int) string {
+	return strings.ReplaceAll(str, "\n", "\n"+strings.Repeat(" ", spaces))
 }

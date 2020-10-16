@@ -51,9 +51,6 @@ type Values struct {
 	Namespace string
 	// Name is the name of the Network extension. Commonly the Shoot's name.
 	Name string
-	// isInRestorePhaseOfControlPlaneMigration indicates if the Shoot is in the restore
-	// Phase of the ControlPlane migration
-	IsInRestorePhaseOfControlPlaneMigration bool
 	// Type is the type of Network plugin/extension (e.g calico)
 	Type string
 	// ProviderConfig contains the provider config for the Network extension.
@@ -66,7 +63,7 @@ type Values struct {
 
 // New creates a new instance of DeployWaiter for a Network.
 func New(
-	logger *logrus.Entry,
+	logger logrus.FieldLogger,
 	client client.Client,
 	values *Values,
 	waitInterval time.Duration,
@@ -85,7 +82,7 @@ func New(
 
 type network struct {
 	values              *Values
-	logger              *logrus.Entry
+	logger              logrus.FieldLogger
 	client              client.Client
 	waitInterval        time.Duration
 	waitSevereThreshold time.Duration

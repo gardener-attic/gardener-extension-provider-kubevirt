@@ -52,12 +52,16 @@ var _ = Describe("CloudProfileConfig validation", func() {
 				MachineImages: []core.MachineImage{
 					{
 						Name: "ubuntu",
-						Versions: []core.ExpirableVersion{
+						Versions: []core.MachineImageVersion{
 							{
-								Version: "16.04",
+								ExpirableVersion: core.ExpirableVersion{
+									Version: "16.04",
+								},
 							},
 							{
-								Version: "18.04",
+								ExpirableVersion: core.ExpirableVersion{
+									Version: "18.04",
+								},
 							},
 						},
 					},

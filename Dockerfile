@@ -6,7 +6,7 @@ COPY . .
 RUN make install
 
 ############# base
-FROM alpine:3.11.3 AS base
+FROM alpine:3.12.0 AS base
 
 ############# gardener-extension-provider-kubevirt
 FROM base AS gardener-extension-provider-kubevirt

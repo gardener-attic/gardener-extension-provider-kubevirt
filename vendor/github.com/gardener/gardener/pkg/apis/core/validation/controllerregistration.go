@@ -31,6 +31,7 @@ import (
 var availablePolicies = sets.NewString(
 	string(core.ControllerDeploymentPolicyOnDemand),
 	string(core.ControllerDeploymentPolicyAlways),
+	string(core.ControllerDeploymentPolicyAlwaysExceptNoShoots),
 )
 
 // ValidateControllerRegistration validates a ControllerRegistration object.
@@ -115,6 +116,7 @@ func ValidateControllerRegistrationUpdate(new, old *core.ControllerRegistration)
 	return allErrs
 }
 
+// ValidateControllerRegistrationSpecUpdate validates a ControllerRegistration spec before an update.
 func ValidateControllerRegistrationSpecUpdate(new, old *core.ControllerRegistrationSpec, deletionTimestampSet bool, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
