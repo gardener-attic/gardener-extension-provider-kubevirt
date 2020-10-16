@@ -9,5 +9,5 @@ images:
   tag: "v0.1.0"
 - name: cloud-controller-manager
   sourceRepository: github.com/kubevirt/cloud-provider-kubevirt
-  repository: eu.gcr.io/gardener-project/gardener/kubevirt-cloud-controller-manager
+  repository: eu.gcr.io/gardener-project/kubevirt-cloud-controller-manager
   tag: "v0.0.8"
