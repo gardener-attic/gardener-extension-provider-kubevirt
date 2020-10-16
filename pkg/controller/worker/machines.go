@@ -161,7 +161,7 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			OvercommitGuestOverhead: workerConfig.OvercommitGuestOverhead,
 		}
 
-		if mt := w.getMachineTypesExtension(machineType.Name); mt != nil {
+		if mt := w.getMachineTypeExtension(machineType.Name); mt != nil {
 			if mt.Limits != nil {
 				resourceRequirements.Limits = corev1.ResourceList{
 					corev1.ResourceCPU:    mt.Limits.CPU,
@@ -290,6 +290,17 @@ func (w *workerDelegate) getVolumeType(name string) (*corev1beta1.VolumeType, er
 		}
 	}
 	return nil, errors.Errorf("volume type %q not found in cloud profile", name)
+}
+
+func (w *workerDelegate) getMachineTypeExtension(name string) *apiskubevirt.MachineType {
+	if w.cloudProfileConfig != nil {
+		for _, mt := range w.cloudProfileConfig.MachineTypes {
+			if mt.Name == name {
+				return &mt
+			}
+		}
+	}
+	return nil
 }
 
 func (w *workerDelegate) createOrUpdateMachineClassVolumes(ctx context.Context) error {

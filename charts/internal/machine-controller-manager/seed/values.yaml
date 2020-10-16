@@ -1,5 +1,6 @@
 images:
   machine-controller-manager: image-repository:image-tag
+  machine-controller-manager-provider-kubevirt: image-repository:image-tag
 
 replicas: 1
 

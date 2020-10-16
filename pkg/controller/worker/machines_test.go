@@ -61,6 +61,7 @@ var _ = Describe("Machines", func() {
 		ctrl *gomock.Controller
 
 		c                 *mockclient.MockClient
+		statusWriter      *mockclient.MockStatusWriter
 		chartApplier      *mockkubernetes.MockChartApplier
 		clientFactory     *mockkubevirt.MockClientFactory
 		dataVolumeManager *mockkubevirt.MockDataVolumeManager
@@ -70,6 +71,7 @@ var _ = Describe("Machines", func() {
 		ctrl = gomock.NewController(GinkgoT())
 
 		c = mockclient.NewMockClient(ctrl)
+		statusWriter = mockclient.NewMockStatusWriter(ctrl)
 		chartApplier = mockkubernetes.NewMockChartApplier(ctrl)
 		clientFactory = mockkubevirt.NewMockClientFactory(ctrl)
 		dataVolumeManager = mockkubevirt.NewMockDataVolumeManager(ctrl)
@@ -524,6 +526,23 @@ var _ = Describe("Machines", func() {
 					},
 				)
 
+				workerWithStatus := w.DeepCopy()
+				workerWithStatus.Status.ProviderStatus = &runtime.RawExtension{
+					Object: &kubevirtv1alpha1.WorkerStatus{
+						TypeMeta: metav1.TypeMeta{
+							APIVersion: kubevirtv1alpha1.SchemeGroupVersion.String(),
+							Kind:       "WorkerStatus",
+						},
+						MachineImages: []kubevirtv1alpha1.MachineImage{
+							{
+								Name:      machineImageName,
+								Version:   machineImageVersion,
+								SourceURL: ubuntuSourceURL,
+							},
+						},
+					},
+				}
+
 				expectGetSecret(c, namespace, "kubevirt-provider-credentials", 2)
 
 				clientFactory.EXPECT().GetClient([]byte(kubeconfig)).Return(nil, "default", nil)
@@ -537,6 +556,10 @@ var _ = Describe("Machines", func() {
 						},
 					}),
 				).Return(nil)
+
+				c.EXPECT().Get(context.TODO(), gomock.Any(), gomock.AssignableToTypeOf(&extensionsv1alpha1.Worker{})).Return(nil)
+				c.EXPECT().Status().Return(statusWriter)
+				statusWriter.EXPECT().Update(context.TODO(), workerWithStatus).Return(nil)
 
 				dataVolumeManager.EXPECT().CreateOrUpdateDataVolume(context.TODO(), []byte(kubeconfig), machineClassName3,
 					map[string]string{kubevirt.ClusterLabel: namespace},
@@ -566,23 +589,9 @@ var _ = Describe("Machines", func() {
 				err = workerDelegate.DeployMachineClasses(context.TODO())
 				Expect(err).NotTo(HaveOccurred())
 
-				By("getting machine images")
-				workerStatus := &kubevirtv1alpha1.WorkerStatus{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: kubevirtv1alpha1.SchemeGroupVersion.String(),
-						Kind:       "WorkerStatus",
-					},
-					MachineImages: []kubevirtv1alpha1.MachineImage{
-						{
-							Name:      machineImageName,
-							Version:   machineImageVersion,
-							SourceURL: ubuntuSourceURL,
-						},
-					},
-				}
-				result, err := workerDelegate.GetMachineImages(context.TODO())
+				By("updating machine images")
+				err = workerDelegate.UpdateMachineImagesStatus(context.TODO())
 				Expect(err).NotTo(HaveOccurred())
-				Expect(result).To(Equal(workerStatus))
 
 				By("generating machine deployments")
 				machineDeployments := worker.MachineDeployments{
@@ -836,9 +845,11 @@ func createCluster(cloudProfileName, shootVersion string, images []kubevirtv1alp
 	for _, image := range images {
 		specImages = append(specImages, gardencorev1beta1.MachineImage{
 			Name: image.Name,
-			Versions: []gardencorev1beta1.ExpirableVersion{
+			Versions: []gardencorev1beta1.MachineImageVersion{
 				{
-					Version: image.Versions[0].Version,
+					ExpirableVersion: gardencorev1beta1.ExpirableVersion{
+						Version: image.Versions[0].Version,
+					},
 				},
 			},
 		})

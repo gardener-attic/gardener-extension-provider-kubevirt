@@ -55,9 +55,11 @@ var _ = Describe("Helper (decode)", func() {
 					MachineImages: []gardencorev1beta1.MachineImage{
 						{
 							Name: "ubuntu",
-							Versions: []gardencorev1beta1.ExpirableVersion{
+							Versions: []gardencorev1beta1.MachineImageVersion{
 								{
-									Version: "16.04",
+									ExpirableVersion: gardencorev1beta1.ExpirableVersion{
+										Version: "16.04",
+									},
 								},
 							},
 						},

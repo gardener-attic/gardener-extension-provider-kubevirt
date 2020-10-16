@@ -32,19 +32,18 @@ func FindMachineImage(configImages []apiskubevirt.MachineImage, imageName, image
 	return nil, errors.Errorf("machine image with name %q and version %q not found", imageName, imageVersion)
 }
 
-// FindImage takes a list of machine images, and the desired image name and version. It tries
+// FindImageFromCloudProfile takes a list of machine images, and the desired image name and version. It tries
 // to find the image with the given name and version. If it cannot be found then an error
 // is returned.
-func FindImage(profileImages []apiskubevirt.MachineImages, imageName, imageVersion string) (string, error) {
-	for _, machineImage := range profileImages {
-		if machineImage.Name == imageName {
+func FindImageFromCloudProfile(cloudProfileConfig *apiskubevirt.CloudProfileConfig, imageName, imageVersion string) (string, error) {
+	if cloudProfileConfig != nil {
+		for _, machineImage := range cloudProfileConfig.MachineImages {
+			if machineImage.Name != imageName {
+				continue
+			}
 			for _, version := range machineImage.Versions {
 				if imageVersion == version.Version {
-					sourceURL := ""
-					if version.SourceURL != "" {
-						sourceURL = version.SourceURL
-					}
-					return sourceURL, nil
+					return version.SourceURL, nil
 				}
 			}
 		}
