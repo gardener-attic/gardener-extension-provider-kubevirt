@@ -44,10 +44,18 @@ metadata:
   name: kubevirt
 spec:
   type: kubevirt
+  providerConfig:
+    apiVersion: kubevirt.provider.extensions.gardener.cloud/v1alpha1
+    kind: CloudProfileConfig
+    machineImages:
+    - name: ubuntu
+      versions:
+      - version: "18.04"
+        sourceURL: https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img
   kubernetes:
     versions:
-    - version: "1.17.8"
-    - version: "1.18.5"
+    - version: 1.18.5
+    - version: 1.17.8
   machineImages:
   - name: ubuntu
     versions:
@@ -66,14 +74,6 @@ spec:
     - name: europe-west1-b
     - name: europe-west1-c
     - name: europe-west1-d
-  providerConfig:
-    apiVersion: kubevirt.provider.extensions.gardener.cloud/v1alpha1
-    kind: CloudProfileConfig
-    machineImages:
-    - name: ubuntu
-      versions:
-      - version: "18.04"
-        sourceURL: https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img
 ```
 
 ## `Seed` resource

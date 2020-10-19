@@ -2,5 +2,5 @@
 
 set -euxo pipefail
 
-KUBEVIRT_VERSION="v0.29.0"
-CDI_VERSION="v1.18.0"
+KUBEVIRT_VERSION="v0.32.0"
+CDI_VERSION="v1.23.5"

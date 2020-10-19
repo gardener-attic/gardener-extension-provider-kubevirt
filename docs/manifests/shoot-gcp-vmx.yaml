@@ -1,41 +1,13 @@
-kind: Shoot
 apiVersion: core.gardener.cloud/v1beta1
+kind: Shoot
 metadata:
   name: <prefix>-gcp-vmx
   namespace: garden-dev
-  annotations:
-    gardener.cloud/created-by: john.doe@example.com
 spec:
-  addons:
-    kubernetesDashboard:
-      enabled: false
-    nginxIngress:
-      enabled: true
-      externalTrafficPolicy: Cluster
   cloudProfileName: gcp
-  hibernation:
-    enabled: false
-  kubernetes:
-    allowPrivilegedContainers: true
-    kubeAPIServer:
-      enableBasicAuthentication: false
-    kubeControllerManager:
-      nodeCIDRMaskSize: 24
-    kubeProxy:
-      mode: IPTables
-    version: 1.18.2
-  networking:
-    type: calico
-    pods: 10.225.128.0/17
-    nodes: 10.250.0.0/16
-    services: 10.225.0.0/17
-  maintenance:
-    autoUpdate:
-      kubernetesVersion: true
-      machineImageVersion: true
-    timeWindow:
-      begin: 220000+0000
-      end: 230000+0000
+  secretBindingName: shoot-operator-gcp
+  purpose: evaluation
+  region: europe-west1
   provider:
     type: gcp
     controlPlaneConfig:
@@ -53,17 +25,27 @@ spec:
         type: n1-standard-16
         image:
           name: ubuntu
-          version: 18.4.20200228-vmx
-      maximum: 1
+          version: 18.4.20200916-vmx
       minimum: 1
-      maxSurge: 1
-      maxUnavailable: 0
+      maximum: 1
       volume:
         type: pd-standard
         size: 50Gi
       zones:
       - europe-west1-c
-  purpose: evaluation
-  region: europe-west1
-  secretBindingName: shoot-operator-gcp
-  seedName: gcp1
+  networking:
+    type: calico
+    pods: 10.225.128.0/17
+    nodes: 10.250.0.0/16
+    services: 10.225.0.0/17
+  kubernetes:
+    version: 1.18.5
+  maintenance:
+    autoUpdate:
+      kubernetesVersion: true
+      machineImageVersion: true
+  addons:
+    kubernetesDashboard:
+      enabled: true
+    nginxIngress:
+      enabled: true
