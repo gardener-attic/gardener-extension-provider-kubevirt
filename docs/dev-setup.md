@@ -6,13 +6,35 @@ In this setup, only Gardener itself is running in your local development cluster
 
 ## Prerequisites
 
-Follow the steps outlined in [Setting up a local development environment](https://github.com/gardener/gardener/blob/master/docs/development/local_setup.md) for Gardener in order to install all needed prerequisites and enable running Gardener `apiserver`, `controller-manager`, and `gardenlet` locally. You can use either minikube, kind, or the nodeless cluster as your local development cluster.
+Follow the steps outlined in [Setting up a local development environment](https://github.com/gardener/gardener/blob/master/docs/development/local_setup.md) for Gardener in order to install all needed prerequisites and enable running `gardener-apiserver`, `gardener-controller-manager`, and `gardenlet` locally. You can use either minikube, kind, or the nodeless cluster as your local development cluster.
 
 Before continuing, copy all files from `docs/development/manifests` and `docs/development/scripts` to your `dev` directory and adapt them as needed. The sections that follow assume that you have already done this and all needed manifests and scripts can be found in your `dev` directory.
 
+## Creating the ControllerRegistrations
+
+Before you register seeds or create shoots, you need to register all needed extensions using `ControllerRegistration` resources. The easiest way to manage `ControllerRegistrations` is via [gem](https://github.com/gardener/gem). 
+
+After installing `gem`, create a `requirements.yaml` file similar to [requirements.yaml](manifests/requirements.yaml). The example file contains only the extensions needed for the development setup described here, but you could add any other Gardener extensions you may need. 
+
+In your `requirements.yaml` file you can refer to a released extension version, or to a revision (commit) from a Gardener repo or your fork of it. This version or revision is used to find the correct `controller-registration.yaml` file for the extension.
+
+You can generate or update the `controller-registrations.yaml` file out of your `requirements.yaml` file by running:
+
+```shell script
+gem ensure --requirements dev/requirements.yaml --controller-registrations dev/controller-registrations.yaml
+```
+
+After generating or updating the `controller-registrations.yaml` file, review it and make sure all versions are the ones you want to use for your tests. For example, if you are working on a PR for the KubeVirt provider extension, in addition to specifying the revision in your fork in `requirements.yaml`, you may need to change the version from `0.1.0-dev` to something unique to you or your PR, e.g. `0.1.0-dev-johndoe`. You can also add `pullPolicy: Always` to ensure that if you push a new extension image with that version and delete the corresponding pod, the new image will always be pulled when the pod is recreated.
+
+Once you are satisfied with your controller registrations, apply the `controller-registrations.yaml` to your local Gardener:
+
+```shell script
+kubectl apply -f dev/controller-registrations.yaml
+```
+
 ## Registering the Seed Cluster
 
-Create or choose an external cluster, different from your local development cluster, to register as seed in your local Gardener. This can be any cluster and it can be the same or different from your [provider cluster](#creating-the-provider-cluster). It is recommended to use a different cluster to avoid confusion between the two.
+Create or choose an external cluster, different from your local development cluster, to register as seed in your local Gardener. This can be any cluster and it can be the same or different from your [provider cluster](#creating-the-provider-cluster). It is recommended to use a different cluster to avoid confusion between the two. If you want to use your provider cluster as seed, first create it as described below and then return to this step.
 
 To register your cluster as a seed, create the secret containing the kubeconfig for your seed cluster, the secret containing the credentials for your cloud provider (e.g. GCP), and the seed resource itself. See the following files as examples:
 
@@ -26,50 +48,36 @@ kubectl apply -f dev/secret-seed-operator-gcp.yaml
 kubectl apply -f dev/seed-gcp1.yaml
 ```
 
-## Creating the ControllerRegistrations
+## Creating the Project
 
-Before you can create shoots based on the seed you just created, you need to register all needed extensions using `ControllerRegistration` resources. The easiest way to manage `ControllerRegistrations` is via [gem](https://github.com/gardener/gem). 
+At this point, you should create a `dev` project in your local Gardener.
 
-After installing `gem`, create a `requirements.yaml` file similar to [requirements.yaml](manifests/requirements.yaml). The example file contains only the extensions needed for the development setup described here, but you could add any other Gardener extensions you may need. 
-
-In your `requirements.yaml` file you can refer to a released extension version, or to a revision (commit) from a Gardener repo or your fork of it. This version or revision is used to find the correct `controller-registration.yaml` file for the extension.
-
-You can generate or update the `controller-registrations.yaml` file out of your `requirements.yaml` file by running:
+Create the project resource for your local `dev` project, see [project-dev](manifests/project-dev.yaml) as an example.
 
 ```shell script
-gem ensure --requirements dev/requirements.yaml --controller-registrations dev/controller-registrations.yaml
+kubectl apply -f dev/project-dev.yaml
 ```
 
-After generating or updating the `controller-registrations.yaml` file, review it and make sure all versions are the ones you would like to use for your tests. For example, if you are working on a PR for the KubeVirt provider extension, in addition to specifying the revision in your fork in `requirements.yaml`, you may need to change the version from `0.1.0-dev` to something unique to you or your PR, e.g. `0.1.0-dev-johndoe`. You can also add `pullPolicy: Always` to ensure that if you push a new extension image with that version and delete the corresponding pod, the new image will always be pulled when the pod is recreated.
+## Creating the DNS Domain Secrets
 
-Once you are satisfied with your controller registrations, apply the `controller-registrations.yaml` to your local Gardener:
+At this point, you should create the domain secrets used by the DNS extension.
+
+If you want to use an external DNS provider (e.g. route53), create default and internal domain secrets similar to [secret-default-domain.yaml](manifests/secret-default-domain.yaml) and [secret-internal-domain.yaml](manifests/secret-internal-domain.yaml).
 
 ```shell script
-kubectl apply -f dev/controller-registrations.yaml
+kubectl apply -f dev/secret-default-domain.yaml
+kubectl apply -f dev/secret-internal-domain.yaml
 ```
 
-## Creating the Project and Domain Secrets
-
-Create a `dev` project in your local Gardener, and also 2 domain secrets used by the DNS extension.
-
-1. Create the project resource for your local `dev` project, see [project-dev](manifests/project-dev.yaml) as an example.
-
-    ```shell script
-    kubectl apply -f dev/project-dev.yaml
-    ```
-
-2. Create the default and internal domain secrets, see [secret-default-domain.yaml](manifests/secret-default-domain.yaml) and [secret-internal-domain.yaml](manifests/secret-internal-domain.yaml).
-
-    ```shell script
-    kubectl apply -f dev/secret-default-domain.yaml
-    kubectl apply -f dev/secret-internal-domain.yaml
-    ```
+Alternatively, if you don't want to use an external DNS provider and use `nip.io` addresses instead, create just an internal domain secret similar to [10-secret-internal-domain-unmanaged.yaml](https://github.com/gardener/gardener/blob/master/example/10-secret-internal-domain-unmanaged.yaml). For more information, see [Prepare the Gardener](https://github.com/gardener/gardener/blob/master/docs/development/local_setup.md#prepare-the-gardener).
    
 ## Creating the Provider Cluster
 
 Create or choose an external cluster, different from your local development cluster, to use as a provider cluster. The only requirement to this cluster is that virtualization extensions are supported on its nodes. You can check if this is the case as described in [Easy install using Cloud Providers](https://kubevirt.io/pages/cloud.html), by  executing the command `egrep 'svm|vmx' /proc/cpuinfo` and checking for non-empty output.
 
-You can create such a cluster with Gardener on GCP (and possibly other cloud providers) but first you need to ensure that nested virtualizaton is enabled for its instances by using an appropriate image. To create such an image, follow the steps described in [Enabling nested virtualization for VM instances](https://cloud.google.com/compute/docs/instances/enable-nested-virtualization-vm-instances). For example, to create a custom Ubuntu image with nested virtualizaton enabled based on Ubuntu 18.04, execute the following commands:
+### Creating an OS Image with Nested Virtualization Enabled
+
+Before you can create such a cluster, you need to ensure that nested virtualizaton is enabled for its instances by using an appropriate OS image. To create such an image in GCP, follow the steps described in [Enabling nested virtualization for VM instances](https://cloud.google.com/compute/docs/instances/enable-nested-virtualization-vm-instances). For example, to create a custom Ubuntu image with nested virtualizaton enabled based on Ubuntu 18.04, execute the following commands:
 
 ```
 gcloud compute disks create ubuntu-disk1 
@@ -83,7 +91,11 @@ gcloud compute images create ubuntu-1804-bionic-v20200916-vmx-enabled \
 gcloud compute images list | grep ubuntu
 ```
 
-Once the image has been created, to create the provider cluster, you could simply create a shoot in the seed you registered previously using a custom GCP cloud profile that contains this image, such as [cloudprofile-gcp.yaml](manifests/cloudprofile-gcp.yaml). To do this, follow these steps:
+Once the image has been created, to create the provider cluster, you could use any Kubernetes provisioning tool, including of course Gardener itself, to create a cluster using this image. 
+
+### Creating the Provider Cluster Using Gardener
+
+To create the provider cluster using Gardener, simply create a shoot in the seed you registered previously using a custom GCP cloud profile that contains the above image, such as [cloudprofile-gcp.yaml](manifests/cloudprofile-gcp.yaml). To do this, follow these steps:
 
 1. Create the custom GCP cloud profile, for example [cloudprofile-gcp.yaml](manifests/cloudprofile-gcp.yaml).
 
@@ -111,14 +123,18 @@ Once the image has been created, to create the provider cluster, you could simpl
     kubectl get secret <prefix>-gcp-vmx.kubeconfig -n garden-dev -o jsonpath={.data.kubeconfig} | base64 -d > dev/kubeconfig-gcp-vmx.yaml
     ```
    
-5. Install KubeVirt and CDI in this cluster by executing the [install-kubevirt.sh](../hack/kubevirt/install-kubevirt.sh) script:
+### Installing KubeVirt, CDI, and Multus in the Provider Cluster
+
+Once the provider cluster has been created (with Gardener or any other provisioning tool), you should install KubeVirt, CDI, and optionally Multus in it so that it can serve its purpose as a provider cluster. 
+   
+1. Install KubeVirt and CDI in this cluster by executing the [install-kubevirt.sh](../hack/kubevirt/install-kubevirt.sh) script:
 
     ```shell script
     export KUBECONFIG=dev/kubeconfig-gcp-vmx.yaml
     hack/kubevirt/install-kubevirt.sh
     ```
    
-6. Optionally, to test networking features, install [Multus CNI](https://intel.github.io/multus-cni/doc/quickstart.html) as described in its documentation, or by applying the provided [multus.yaml](../hack/kubevirt/multus.yaml) manifest.
+2. Optionally, to use networking features, install [Multus CNI](https://intel.github.io/multus-cni/doc/quickstart.html) as described in its documentation, or by applying the provided [multus.yaml](../hack/kubevirt/multus.yaml) manifest.
 
     ```shell script
     export KUBECONFIG=dev/kubeconfig-gcp-vmx.yaml
