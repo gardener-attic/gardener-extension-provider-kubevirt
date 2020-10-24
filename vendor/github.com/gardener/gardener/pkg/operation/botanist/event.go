@@ -12,24 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package component
+package botanist
 
-// Secret is a structure that contains information about a Kubernetes secret which is managed externally.
-type Secret struct {
-	// Name is the name of the Kubernetes secret object.
-	Name string
-	// Checksum is the checksum of the secret's data.
-	Checksum string
+import corev1 "k8s.io/api/core/v1"
+
+// SortableEvents implements sort.Interface for []api.Event based on the Timestamp field.
+type SortableEvents []corev1.Event
+
+// Len implements sort.Interface.
+func (list SortableEvents) Len() int {
+	return len(list)
 }
 
-// LoggingConfig is a structure that contains additional Fluentbit filters and parsers
-type LoggingConfig struct {
-	// Filters contains the filters for specific component
-	Filters string
-	// Parser contains the parsers for specific component
-	Parsers string
-	// PodPrefix is the prefix of the pod name
-	PodPrefix string
-	// UserExposed defines if the component is exposed to the end-user
-	UserExposed bool
+// Swap implements sort.Interface.
+func (list SortableEvents) Swap(i, j int) {
+	list[i], list[j] = list[j], list[i]
+}
+
+// Less implements sort.Interface.
+func (list SortableEvents) Less(i, j int) bool {
+	return list[i].LastTimestamp.Time.Before(list[j].LastTimestamp.Time)
 }
