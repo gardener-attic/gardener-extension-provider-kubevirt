@@ -25,6 +25,8 @@ spec:
       labels:
 {{ include "labels" . | indent 8 }}
     spec:
+      priorityClassName: gardener-extension-provider-kubevirt
+      serviceAccountName: {{ include "name" . }}
       containers:
       - name: {{ include "name" . }}
         image: {{ include "image" . }}
@@ -67,7 +69,6 @@ spec:
           mountPath: /charts_overwrite/
           readOnly: true
 {{- end }}
-      serviceAccountName: {{ include "name" . }}
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
