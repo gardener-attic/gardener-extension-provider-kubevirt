@@ -12,24 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package component
+package utils
 
-// Secret is a structure that contains information about a Kubernetes secret which is managed externally.
-type Secret struct {
-	// Name is the name of the Kubernetes secret object.
-	Name string
-	// Checksum is the checksum of the secret's data.
-	Checksum string
-}
+import (
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+)
 
-// LoggingConfig is a structure that contains additional Fluentbit filters and parsers
-type LoggingConfig struct {
-	// Filters contains the filters for specific component
-	Filters string
-	// Parser contains the parsers for specific component
-	Parsers string
-	// PodPrefix is the prefix of the pod name
-	PodPrefix string
-	// UserExposed defines if the component is exposed to the end-user
-	UserExposed bool
+// MustNewRequirement creates a labels.Requirement with the given values and panics if there is an error.
+func MustNewRequirement(key string, op selection.Operator, vals ...string) labels.Requirement {
+	req, err := labels.NewRequirement(key, op, vals)
+	utilruntime.Must(err)
+	return *req
 }

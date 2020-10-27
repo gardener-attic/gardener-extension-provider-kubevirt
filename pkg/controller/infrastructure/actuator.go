@@ -163,7 +163,7 @@ func (a *actuator) Delete(ctx context.Context, infra *extensionsv1alpha1.Infrast
 }
 
 func (a *actuator) Restore(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *extensionscontroller.Cluster) error {
-	return nil
+	return a.Reconcile(ctx, infra, cluster)
 }
 
 func (a *actuator) Migrate(ctx context.Context, infra *extensionsv1alpha1.Infrastructure, cluster *extensionscontroller.Cluster) error {
