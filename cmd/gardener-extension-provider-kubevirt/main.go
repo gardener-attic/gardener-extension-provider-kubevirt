@@ -17,16 +17,16 @@ package main
 import (
 	"github.com/gardener/gardener-extension-provider-kubevirt/cmd/gardener-extension-provider-kubevirt/app"
 
-	"github.com/gardener/gardener/extensions/pkg/controller"
 	controllercmd "github.com/gardener/gardener/extensions/pkg/controller/cmd"
 	"github.com/gardener/gardener/extensions/pkg/log"
 	runtimelog "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 )
 
 func main() {
 	// TODO: change logger to be more flexible for development purposes
 	runtimelog.SetLogger(log.ZapLogger(false))
-	cmd := app.NewControllerManagerCommand(controller.SetupSignalHandlerContext())
+	cmd := app.NewControllerManagerCommand(signals.SetupSignalHandler())
 	if err := cmd.Execute(); err != nil {
 		controllercmd.LogErrAndExit(err, "error executing the main controller command")
 	}

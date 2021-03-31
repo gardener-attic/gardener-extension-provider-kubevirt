@@ -23,10 +23,12 @@ import (
 	machinev1alpha1 "github.com/gardener/machine-controller-manager/pkg/apis/machine/v1alpha1"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/gardener/gardener/extensions/pkg/controller"
+	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	gardencorev1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	"github.com/gardener/gardener/pkg/utils/flow"
@@ -39,8 +41,8 @@ const (
 	forceDeletionLabelValue = "True"
 )
 
-func (a *genericActuator) Delete(ctx context.Context, worker *extensionsv1alpha1.Worker, cluster *controller.Cluster) error {
-	logger := a.logger.WithValues("worker", kutil.KeyFromObject(worker), "operation", "delete")
+func (a *genericActuator) Delete(ctx context.Context, worker *extensionsv1alpha1.Worker, cluster *extensionscontroller.Cluster) error {
+	logger := a.logger.WithValues("worker", client.ObjectKeyFromObject(worker), "operation", "delete")
 
 	workerDelegate, err := a.delegateFactory.WorkerDelegate(ctx, worker, cluster)
 	if err != nil {
@@ -63,30 +65,39 @@ func (a *genericActuator) Delete(ctx context.Context, worker *extensionsv1alpha1
 		return errors.Wrapf(err, "failed to deploy the machine classes")
 	}
 
+	if workerCredentialsDelegate, ok := workerDelegate.(WorkerCredentialsDelegate); ok {
+		// Update cloud credentials for all existing machine class secrets
+		cloudCredentials, err := workerCredentialsDelegate.GetMachineControllerManagerCloudCredentials(ctx)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get the cloud credentials in namespace %s", worker.Namespace)
+		}
+		if err = a.updateCloudCredentialsInAllMachineClassSecrets(ctx, logger, cloudCredentials, worker.Namespace); err != nil {
+			return errors.Wrapf(err, "failed to update cloud credentials in machine class secrets for namespace %s", worker.Namespace)
+		}
+	}
+
 	// Mark all existing machines to become forcefully deleted.
+	logger.Info("Marking all machines to become forcefully deleted")
 	if err := a.markAllMachinesForcefulDeletion(ctx, logger, worker.Namespace); err != nil {
 		return errors.Wrapf(err, "marking all machines for forceful deletion failed")
 	}
 
-	// Get the list of all existing machine deployments.
-	existingMachineDeployments := &machinev1alpha1.MachineDeploymentList{}
-	if err := a.client.List(ctx, existingMachineDeployments, client.InNamespace(worker.Namespace)); err != nil {
-		return err
-	}
-
 	// Delete all machine deployments.
-	if err := a.cleanupMachineDeployments(ctx, logger, existingMachineDeployments, nil); err != nil {
-		return errors.Wrapf(err, "cleaning up machine deployments failed")
+	logger.Info("Deleting all machine deployments")
+	if err := a.client.DeleteAllOf(ctx, &machinev1alpha1.MachineDeployment{}, client.InNamespace(worker.Namespace)); err != nil {
+		return errors.Wrapf(err, "cleaning up all machine deployments failed")
 	}
 
 	// Delete all machine classes.
-	if err := a.cleanupMachineClasses(ctx, logger, worker.Namespace, workerDelegate.MachineClassList(), nil); err != nil {
-		return errors.Wrapf(err, "cleaning up machine classes failed")
+	logger.Info("Deleting all machine classes")
+	if err := a.client.DeleteAllOf(ctx, workerDelegate.MachineClass(), client.InNamespace(worker.Namespace)); err != nil {
+		return errors.Wrapf(err, "cleaning up all machine classes failed")
 	}
 
 	// Delete all machine class secrets.
-	if err := a.cleanupMachineClassSecrets(ctx, logger, worker.Namespace, nil); err != nil {
-		return errors.Wrapf(err, "cleaning up machine class secrets failed")
+	logger.Info("Deleting all machine class secrets")
+	if err := a.client.DeleteAllOf(ctx, &corev1.Secret{}, client.InNamespace(worker.Namespace), client.MatchingLabels(getMachineClassSecretLabels())); err != nil {
+		return errors.Wrapf(err, "cleaning up all machine class secrets failed")
 	}
 
 	// Wait until all machine resources have been properly deleted.
@@ -155,6 +166,8 @@ func (a *genericActuator) waitUntilMachineResourcesDeleted(ctx context.Context, 
 		countMachineDeployments  = -1
 		countMachineClasses      = -1
 		countMachineClassSecrets = -1
+
+		releasedMachineClassCredentialsSecret = false
 	)
 	logger.Info("Waiting until all machine resources have been deleted")
 
@@ -164,7 +177,7 @@ func (a *genericActuator) waitUntilMachineResourcesDeleted(ctx context.Context, 
 		// Check whether all machines have been deleted.
 		if countMachines != 0 {
 			existingMachines := &machinev1alpha1.MachineList{}
-			if err := a.client.List(ctx, existingMachines, client.InNamespace(worker.Namespace)); err != nil {
+			if err := a.reader.List(ctx, existingMachines, client.InNamespace(worker.Namespace)); err != nil {
 				return retryutils.SevereError(err)
 			}
 			countMachines = len(existingMachines.Items)
@@ -174,7 +187,7 @@ func (a *genericActuator) waitUntilMachineResourcesDeleted(ctx context.Context, 
 		// Check whether all machine sets have been deleted.
 		if countMachineSets != 0 {
 			existingMachineSets := &machinev1alpha1.MachineSetList{}
-			if err := a.client.List(ctx, existingMachineSets, client.InNamespace(worker.Namespace)); err != nil {
+			if err := a.reader.List(ctx, existingMachineSets, client.InNamespace(worker.Namespace)); err != nil {
 				return retryutils.SevereError(err)
 			}
 			countMachineSets = len(existingMachineSets.Items)
@@ -184,7 +197,7 @@ func (a *genericActuator) waitUntilMachineResourcesDeleted(ctx context.Context, 
 		// Check whether all machine deployments have been deleted.
 		if countMachineDeployments != 0 {
 			existingMachineDeployments := &machinev1alpha1.MachineDeploymentList{}
-			if err := a.client.List(ctx, existingMachineDeployments, client.InNamespace(worker.Namespace)); err != nil {
+			if err := a.reader.List(ctx, existingMachineDeployments, client.InNamespace(worker.Namespace)); err != nil {
 				return retryutils.SevereError(err)
 			}
 			countMachineDeployments = len(existingMachineDeployments.Items)
@@ -201,7 +214,7 @@ func (a *genericActuator) waitUntilMachineResourcesDeleted(ctx context.Context, 
 		// Check whether all machine classes have been deleted.
 		if countMachineClasses != 0 {
 			machineClassList := workerDelegate.MachineClassList()
-			if err := a.client.List(ctx, machineClassList, client.InNamespace(worker.Namespace)); err != nil {
+			if err := a.reader.List(ctx, machineClassList, client.InNamespace(worker.Namespace)); err != nil {
 				return retryutils.SevereError(err)
 			}
 			machineClasses, err := meta.ExtractList(machineClassList)
@@ -228,8 +241,33 @@ func (a *genericActuator) waitUntilMachineResourcesDeleted(ctx context.Context, 
 			msg += fmt.Sprintf("%d machine class secrets, ", countMachineClassSecrets)
 		}
 
-		if countMachines != 0 || countMachineSets != 0 || countMachineDeployments != 0 || countMachineClasses != 0 || countMachineClassSecrets != 0 {
-			msg := fmt.Sprintf("Waiting until the following machine resources have been deleted: %s", strings.TrimSuffix(msg, ", "))
+		// Check whether the finalizer of the machine class credentials secret is removed.
+		// This check is only applicable when the given workerDelegate does not implement the
+		// deprecated WorkerCredentialsDelegate interface, i.e. machine classes reference a separate
+		// Secret for cloud provider credentials.
+		if !releasedMachineClassCredentialsSecret {
+			_, ok := workerDelegate.(WorkerCredentialsDelegate)
+			if ok {
+				releasedMachineClassCredentialsSecret = true
+			} else {
+				secret, err := kutil.GetSecretByReference(ctx, a.client, &worker.Spec.SecretRef)
+				if err != nil {
+					return retryutils.SevereError(fmt.Errorf("could not get the secret referenced by worker: %+v", err))
+				}
+
+				// We need to check for both mcmFinalizer and mcmProviderFinalizer:
+				// - mcmFinalizer is the finalizer used by machine controller manager and its in-tree providers
+				// - mcmProviderFinalizer is the finalizer used by out-of-tree machine controller providers
+				if controllerutil.ContainsFinalizer(secret, mcmFinalizer) || controllerutil.ContainsFinalizer(secret, mcmProviderFinalizer) {
+					msg += "1 machine class credentials secret, "
+				} else {
+					releasedMachineClassCredentialsSecret = true
+				}
+			}
+		}
+
+		if countMachines != 0 || countMachineSets != 0 || countMachineDeployments != 0 || countMachineClasses != 0 || countMachineClassSecrets != 0 || !releasedMachineClassCredentialsSecret {
+			msg := fmt.Sprintf("Waiting until the following machine resources have been deleted or released: %s", strings.TrimSuffix(msg, ", "))
 			logger.Info(msg)
 			return retryutils.MinorError(errors.New(msg))
 		}

@@ -18,8 +18,6 @@ import (
 	"context"
 
 	"github.com/gardener/gardener/pkg/apis/core/v1alpha1"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Deployer is used to control the life-cycle of a component.
@@ -51,17 +49,20 @@ type MigrateWaiter interface {
 
 // MonitoringComponent exposes configuration for Prometheus as well as the AlertManager.
 type MonitoringComponent interface {
-	// ScrapeConfigs returns the scrape configurationsv for Prometheus.
+	// ScrapeConfigs returns the scrape configurations for Prometheus.
 	ScrapeConfigs() ([]string, error)
 	// AlertingRules returns the alerting rules configs for AlertManager (mapping file name to rule config).
 	AlertingRules() (map[string]string, error)
 }
 
-// LoggingConfiguration is a function alias for returning logging parsers and filters.
-type LoggingConfiguration func() (LoggingConfig, error)
+// CentralMonitoringConfiguration is a function alias for returning configuration for the central monitoring.
+type CentralMonitoringConfiguration func() (CentralMonitoringConfig, error)
 
-// BootstrapSeed is a function alias for components that require to bootstrap the seed cluster.
-type BootstrapSeed func(ctx context.Context, c client.Client, namespace, version string) error
+// CentralLoggingConfiguration is a function alias for returning configuration for the central logging.
+type CentralLoggingConfiguration func() (CentralLoggingConfig, error)
+
+// DependencyWatchdogConfiguration is a function alias for returning configuration for the dependency-watchdog.
+type DependencyWatchdogConfiguration func() (string, error)
 
 // DeployWaiter controls and waits for life-cycle operations of a component.
 type DeployWaiter interface {

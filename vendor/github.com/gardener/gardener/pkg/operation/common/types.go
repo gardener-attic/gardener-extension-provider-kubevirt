@@ -16,53 +16,18 @@ package common
 
 import (
 	"time"
-
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 const (
 	// VPNTunnel dictates that VPN is used as a tunnel between seed and shoot networks.
 	VPNTunnel string = "vpn-shoot"
 
-	// KonnectivityTunnel dictates that a konnectivity proxy is used as a tunnel between seed and shoot networks.
-	KonnectivityTunnel string = "konnectivity-agent"
-
-	// BackupBucketName is a constant for the name of bucket of object storage.
-	BackupBucketName = "bucketName"
-
-	// BackupSecretName defines the name of the secret containing the credentials which are required to
-	// authenticate against the respective cloud provider (required to store the backups of Shoot clusters).
-	BackupSecretName = "etcd-backup"
-
 	// BasicAuthSecretName is the name of the secret containing basic authentication credentials for the kube-apiserver.
 	BasicAuthSecretName = "kube-apiserver-basic-auth"
-
-	// ChartPath is the path to the Helm charts.
-	ChartPath = "charts"
-
-	// CloudConfigPrefix is a constant for the prefix which is added to secret storing the original cloud config (which
-	// is being downloaded from the cloud-config-downloader process)
-	CloudConfigPrefix = "cloud-config"
-
-	// CloudConfigFilePath is the path on the shoot worker nodes to which the operating system specific configuration
-	// will be downloaded.
-	CloudConfigFilePath = "/var/lib/cloud-config-downloader/downloads/cloud_config"
 
 	// ConfirmationDeletion is an annotation on a Shoot and Project resources whose value must be set to "true" in order to
 	// allow deleting the resource (if the annotation is not set any DELETE request will be denied).
 	ConfirmationDeletion = "confirmation.gardener.cloud/deletion"
-
-	// ConfirmationDeletionDeprecated is an annotation on a Shoot resource whose value must be set to "true" in order to
-	// allow deleting the Shoot (if the annotation is not set any DELETE request will be denied).
-	//
-	// Deprecated: Use `ConfirmationDeletion` instead.
-	ConfirmationDeletionDeprecated = "confirmation.garden.sapcloud.io/deletion"
-
-	// ControllerManagerInternalConfigMapName is the name of the internal config map in which the Gardener controller
-	// manager stores its configuration.
-	ControllerManagerInternalConfigMapName = "gardener-controller-manager-internal-config"
 
 	// DNSProvider is the key for an annotation on a Kubernetes Secret object whose value must point to a valid
 	// DNS provider.
@@ -80,12 +45,6 @@ const (
 	// of zones that shall be excluded.
 	DNSExcludeZones = "dns.gardener.cloud/exclude-zones"
 
-	// EtcdRoleMain is the constant defining the role for main etcd storing data about objects in Shoot.
-	EtcdRoleMain = "main"
-
-	// EtcdRoleEvents is the constant defining the role for etcd storing events in Shoot.
-	EtcdRoleEvents = "events"
-
 	// EtcdEncryptionSecretName is the name of the shoot-specific secret which contains
 	// that shoot's EncryptionConfiguration. The EncryptionConfiguration contains a key
 	// which the shoot's apiserver uses for encrypting selected etcd content.
@@ -96,11 +55,6 @@ const (
 	// which is made available as volume mount to the shoot's apiserver.
 	// Should match charts/seed-controlplane/charts/kube-apiserver/templates/deployment.yaml
 	EtcdEncryptionSecretFileName = "encryption-configuration.yaml"
-
-	// EtcdEncryptionChecksumAnnotationName is the name of the annotation with which to annotate
-	// the EncryptionConfiguration secret to denote the checksum of the EncryptionConfiguration
-	// that was used when last rewriting secrets.
-	EtcdEncryptionChecksumAnnotationName = "shoot.gardener.cloud/etcd-encryption-configuration-checksum"
 
 	// EtcdEncryptionChecksumLabelName is the name of the label which is added to the shoot
 	// secrets after rewriting them to ensure that successfully rewritten secrets are not
@@ -134,9 +88,6 @@ const (
 	// GardenRoleInternalDomain is the value of the GardenRole key indicating type 'internal-domain'.
 	GardenRoleInternalDomain = "internal-domain"
 
-	// GardenRoleAlertingSMTP is the value of the GardenRole key indicating type 'alerting-smtp'.
-	GardenRoleAlertingSMTP = "alerting-smtp"
-
 	// GardenRoleOpenVPNDiffieHellman is the value of the GardenRole key indicating type 'openvpn-diffie-hellman'.
 	GardenRoleOpenVPNDiffieHellman = "openvpn-diffie-hellman"
 
@@ -152,12 +103,6 @@ const (
 	// GardenCreatedBy is the key for an annotation of a Shoot cluster whose value indicates contains the username
 	// of the user that created the resource.
 	GardenCreatedBy = "gardener.cloud/created-by"
-
-	// GardenCreatedByDeprecated is the key for an annotation of a Shoot cluster whose value indicates contains the username
-	// of the user that created the resource.
-	//
-	// Deprecated: Use `GardenCreatedBy` instead.
-	GardenCreatedByDeprecated = "garden.sapcloud.io/createdBy"
 
 	// GrafanaOperatorsPrefix is a constant for a prefix used for the operators Grafana instance.
 	GrafanaOperatorsPrefix = "go"
@@ -192,32 +137,8 @@ const (
 	// appended.
 	InternalDomainKey = "internal"
 
-	// KubeControllerManagerServerName is the name of the kube-controller-manager server.
-	KubeControllerManagerServerName = "kube-controller-manager-server"
-
-	// KonnectivityServerCertName is the name of the api-proxy konnectivity-server
-	KonnectivityServerCertName = "konnectivity-server"
-
 	// CoreDNSDeploymentName is the name of the coredns deployment.
 	CoreDNSDeploymentName = "coredns"
-
-	// VPNShootDeploymentName is the name of the vpn-shoot deployment.
-	VPNShootDeploymentName = "vpn-shoot"
-
-	// MetricsServerDeploymentName is the name of the metrics-server deployment.
-	MetricsServerDeploymentName = "metrics-server"
-
-	// KubeProxyDaemonSetName is the name of the kube-proxy daemon set.
-	KubeProxyDaemonSetName = "kube-proxy"
-
-	// NodeProblemDetectorDaemonSetName is the name of the node-problem-detector daemon set.
-	NodeProblemDetectorDaemonSetName = "node-problem-detector"
-
-	// BlackboxExporterDeploymentName is the name of the blackbox-exporter deployment.
-	BlackboxExporterDeploymentName = "blackbox-exporter"
-
-	// NodeExporterDaemonSetName is the name of the node-exporter daemon set.
-	NodeExporterDaemonSetName = "node-exporter"
 
 	// KubecfgUsername is the username for the token used for the kubeconfig the shoot.
 	KubecfgUsername = "system:cluster-admin"
@@ -243,24 +164,16 @@ const (
 	// VPASecretName is the name of the secret used by VPA
 	VPASecretName = "vpa-tls-certs"
 
-	// ProjectPrefix is the prefix of namespaces representing projects.
-	ProjectPrefix = "garden-"
-
-	// ProjectName is they key of a label on namespaces whose value holds the project name.
+	// ProjectName is the key of a label on namespaces whose value holds the project name.
 	ProjectName = "project.gardener.cloud/name"
 
-	// ProjectNameDeprecated is they key of a label on namespaces whose value holds the project name.
-	//
-	// Deprecated: Use `ProjectName` instead.
-	ProjectNameDeprecated = "project.garden.sapcloud.io/name"
+	// ProjectSkipStaleCheck is the key of an annotation on a project namespace that marks the associated Project to be
+	// skipped by the stale project controller. If the project has already configured stale timestamps in its status
+	// then they will be reset.
+	ProjectSkipStaleCheck = "project.gardener.cloud/skip-stale-check"
 
-	// NamespaceProject is they key of an annotation on namespace whose value holds the project uid.
+	// NamespaceProject is the key of an annotation on namespace whose value holds the project uid.
 	NamespaceProject = "namespace.gardener.cloud/project"
-
-	// NamespaceProjectDeprecated is they key of an annotation on namespace whose value holds the project uid.
-	//
-	// Deprecated: Use `NamespaceProject` instead.
-	NamespaceProjectDeprecated = "namespace.garden.sapcloud.io/project"
 
 	// NamespaceKeepAfterProjectDeletion is a constant for an annotation on a `Namespace` resource that states that it
 	// should not be deleted if the corresponding `Project` gets deleted. Please note that all project related labels
@@ -279,17 +192,12 @@ const (
 	// of referenced quotas.
 	ShootExpirationTimestamp = "shoot.gardener.cloud/expiration-timestamp"
 
-	// ShootNoCleanup is a constant for a label on a resource indicating the the Gardener cleaner should not delete this
+	// ShootNoCleanup is a constant for a label on a resource indicating that the Gardener cleaner should not delete this
 	// resource when cleaning a shoot during the deletion flow.
 	ShootNoCleanup = "shoot.gardener.cloud/no-cleanup"
 
 	// ShootStatus is a constant for a label on a Shoot resource indicating that the Shoot's health.
 	ShootStatus = "shoot.gardener.cloud/status"
-
-	// ShootOperationDeprecated is a constant for an annotation on a Shoot in a failed state indicating that an operation shall be performed.
-	//
-	// Deprecated: Use `v1beta1constants.GardenerOperation` instead.
-	ShootOperationDeprecated = "shoot.garden.sapcloud.io/operation"
 
 	// ShootOperationMaintain is a constant for an annotation on a Shoot indicating that the Shoot maintenance shall be executed as soon as
 	// possible.
@@ -305,11 +213,15 @@ const (
 	// ShootTasks is a constant for an annotation on a Shoot which states that certain tasks should be done.
 	ShootTasks = "shoot.gardener.cloud/tasks"
 
-	// ShootTaskDeployInfrastructure is a name for a Shoot's infrastructure deployment task.
+	// ShootTaskDeployInfrastructure is a name for a Shoot's infrastructure deployment task. It indicates that the
+	// Infrastructure extension resource shall be reconciled.
 	ShootTaskDeployInfrastructure = "deployInfrastructure"
 
 	// ShootTaskRestartControlPlanePods is a name for a Shoot task which is dedicated to restart related control plane pods.
 	ShootTaskRestartControlPlanePods = "restartControlPlanePods"
+
+	// ShootTaskRestartCoreAddons is a name for a Shoot task which is dedicated to restart some core addons.
+	ShootTaskRestartCoreAddons = "restartCoreAddons"
 
 	// ShootOperationRetry is a constant for an annotation on a Shoot indicating that a failed Shoot reconciliation shall be retried.
 	ShootOperationRetry = "retry"
@@ -331,122 +243,8 @@ const (
 	// ManagedResourceShootCoreName is the name of the shoot core managed resource.
 	ManagedResourceShootCoreName = "shoot-core"
 
-	// ManagedResourceCoreNamespaceName is the name of the core namespace managed resource.
-	ManagedResourceCoreNamespaceName = "shoot-core-namespaces"
-
 	// ManagedResourceAddonsName is the name of the addons managed resource.
 	ManagedResourceAddonsName = "addons"
-
-	// GardenerResourceManagerImageName is the name of the GardenerResourceManager image.
-	GardenerResourceManagerImageName = "gardener-resource-manager"
-
-	// GardenerSeedAdmissionControllerImageName is the name of the GardenerSeedAdmissionController image.
-	GardenerSeedAdmissionControllerImageName = "gardener-seed-admission-controller"
-
-	// CoreDNSImageName is the name of the CoreDNS image.
-	CoreDNSImageName = "coredns"
-
-	// NodeLocalDNSImageName is the name of the node-local-dns image.
-	NodeLocalDNSImageName = "node-local-dns"
-
-	// NodeProblemDetectorImageName is the name of the node-problem-detector image.
-	NodeProblemDetectorImageName = "node-problem-detector"
-
-	// KubeAPIServerImageName is the name of the kube-apiserver image.
-	KubeAPIServerImageName = "kube-apiserver"
-
-	// KubeControllerManagerImageName is the name of the kube-controller-manager image.
-	KubeControllerManagerImageName = "kube-controller-manager"
-
-	// KubeSchedulerImageName is the name of the kube-scheduler image.
-	KubeSchedulerImageName = "kube-scheduler"
-
-	// KubeProxyImageName is the name of the kube-proxy image.
-	KubeProxyImageName = "kube-proxy"
-
-	// HyperkubeImageName is the name of the hyperkube image (used for kubectl + kubelet on the worker nodes).
-	HyperkubeImageName = "hyperkube"
-
-	// MetricsServerImageName is the name of the MetricsServer image.
-	MetricsServerImageName = "metrics-server"
-
-	// VPNShootImageName is the name of the VPNShoot image.
-	VPNShootImageName = "vpn-shoot"
-
-	// VPNSeedImageName is the name of the VPNSeed image.
-	VPNSeedImageName = "vpn-seed"
-
-	// KonnectivityServerImageName is the name of the konnectivity server image.
-	KonnectivityServerImageName = "konnectivity-server"
-
-	// KonnectivityServerUserName is the user name of the konnectivity server used for the token
-	KonnectivityServerUserName = "system:konnectivity-server"
-
-	// KonnectivityServerKubeconfig is the name of the konnectivity-server kubeconfig
-	KonnectivityServerKubeconfig = "konnectivity-server-kubeconfig"
-
-	// KonnectivityAgentImageName is the name of the konnectivity agent image.
-	KonnectivityAgentImageName = "konnectivity-agent"
-
-	// NodeExporterImageName is the name of the NodeExporter image.
-	NodeExporterImageName = "node-exporter"
-
-	// KubernetesDashboardImageName is the name of the kubernetes-dashboard image.
-	KubernetesDashboardImageName = "kubernetes-dashboard"
-
-	// KubernetesDashboardMetricsScraperImageName is the name of the kubernetes-dashboard-metrics-scraper image.
-	KubernetesDashboardMetricsScraperImageName = "kubernetes-dashboard-metrics-scraper"
-
-	// BusyboxImageName is the name of the Busybox image.
-	BusyboxImageName = "busybox"
-
-	// NginxIngressControllerImageName is the name of the NginxIngressController image.
-	NginxIngressControllerImageName = "nginx-ingress-controller"
-
-	// IngressDefaultBackendImageName is the name of the IngressDefaultBackend image.
-	IngressDefaultBackendImageName = "ingress-default-backend"
-
-	// ClusterAutoscalerImageName is the name of the ClusterAutoscaler image.
-	ClusterAutoscalerImageName = "cluster-autoscaler"
-
-	// AlertManagerImageName is the name of the AlertManager image.
-	AlertManagerImageName = "alertmanager"
-
-	// ConfigMapReloaderImageName is the name of the ConfigMapReloader image.
-	ConfigMapReloaderImageName = "configmap-reloader"
-
-	// GrafanaImageName is the name of the Grafana image.
-	GrafanaImageName = "grafana"
-
-	// PrometheusImageName is the name of the Prometheus image.
-	PrometheusImageName = "prometheus"
-
-	// BlackboxExporterImageName is the name of the BlackboxExporter image.
-	BlackboxExporterImageName = "blackbox-exporter"
-
-	// KubeStateMetricsImageName is the name of the KubeStateMetrics image.
-	KubeStateMetricsImageName = "kube-state-metrics"
-
-	// EtcdDruidImageName is the name of Etcd Druid image
-	EtcdDruidImageName = "etcd-druid"
-
-	// PauseContainerImageName is the name of the PauseContainer image.
-	PauseContainerImageName = "pause-container"
-
-	// LokiImageName is the name of the Loki image used for logging
-	LokiImageName = "loki"
-
-	// FluentBitImageName is the image of Fluent-bit image
-	FluentBitImageName = "fluent-bit"
-
-	// FluentBitPluginInstaller is the image of Fluent-bit plugin installer image
-	FluentBitPluginInstaller = "fluent-bit-plugin-installer"
-
-	// AlpineImageName is the name of alpine image
-	AlpineImageName = "alpine"
-
-	// AlpineIptablesImageName is the name of the alpine image with pre-installed iptable rules
-	AlpineIptablesImageName = "alpine-iptables"
 
 	// SeedSpecHash is a constant for a label on `ControllerInstallation`s (similar to `pod-template-hash` on `Pod`s).
 	SeedSpecHash = "seed-spec-hash"
@@ -454,14 +252,6 @@ const (
 	// RegistrationSpecHash is a constant for a label on `ControllerInstallation`s (similar to `pod-template-hash` on `Pod`s).
 	RegistrationSpecHash = "registration-spec-hash"
 
-	// VpaAdmissionControllerImageName is the name of the vpa-admission-controller image
-	VpaAdmissionControllerImageName = "vpa-admission-controller"
-	// VpaRecommenderImageName is the name of the vpa-recommender image
-	VpaRecommenderImageName = "vpa-recommender"
-	// VpaUpdaterImageName is the name of the vpa-updater image
-	VpaUpdaterImageName = "vpa-updater"
-	// VpaExporterImageName is the name of the vpa-exporter image
-	VpaExporterImageName = "vpa-exporter"
 	// VpaAdmissionControllerName is the name of the vpa-admission-controller name.
 	VpaAdmissionControllerName = "gardener.cloud:vpa:admission-controller"
 	// VpaRecommenderName is the name of the vpa-recommender name.
@@ -471,32 +261,8 @@ const (
 	// VpaExporterName is the name of the vpa-exporter name.
 	VpaExporterName = "gardener.cloud:vpa:exporter"
 
-	// HvpaControllerImageName is the name of the hvpa-controller image
-	HvpaControllerImageName = "hvpa-controller"
-
-	// DependencyWatchdogImageName is the name of the dependency-watchdog image
-	DependencyWatchdogImageName = "dependency-watchdog"
-
-	// IstioProxyImageName is the image of Istio proxy image
-	IstioProxyImageName = "istio-proxy"
-
-	// IstioIstiodImageName is the image of Istio istiod image
-	IstioIstiodImageName = "istio-istiod"
-
 	// IstioNamespace is the istio-system namespace
 	IstioNamespace = "istio-system"
-
-	// IstioIngressGatewayNamespace is the istio-ingress namespace
-	IstioIngressGatewayNamespace = "istio-ingress"
-
-	// IstioIngressGatewayServiceName is the name of the Service used for SNI to the Shoot API Servers.
-	IstioIngressGatewayServiceName = "istio-ingressgateway"
-
-	// APIServerProxyImageName is the image of apiserver-proxy
-	APIServerProxyImageName = "apiserver-proxy"
-
-	// APIServerPorxySidecarImageName is the image of apiserver-proxy sidecar
-	APIServerPorxySidecarImageName = "apiserver-proxy-sidecar"
 
 	// ServiceAccountSigningKeySecretDataKey is the data key of a signing key Kubernetes secret.
 	ServiceAccountSigningKeySecretDataKey = "signing-key"
@@ -511,48 +277,10 @@ const (
 	GrafanaTLS = "grafana-tls"
 	// PrometheusTLS is the name of the secret resource which holds the TLS certificate for Prometheus.
 	PrometheusTLS = "prometheus-tls"
-	// EtcdServerTLS is the name of the secret resource which holds TLS server certificate of Etcd
-	EtcdServerTLS = "etcd-server-cert"
-	// EtcdClientTLS is the name of the secret resource which holds TLS client certificate of Etcd
-	EtcdClientTLS = "etcd-client-tls"
 
 	// EndUserCrtValidity is the time period a user facing certificate is valid.
 	EndUserCrtValidity = 730 * 24 * time.Hour // ~2 years, see https://support.apple.com/en-us/HT210176
-)
 
-var (
-	// RequiredControlPlaneDeployments is a set of the required shoot control plane deployments
-	// running in the seed.
-	RequiredControlPlaneDeployments = sets.NewString(
-		v1beta1constants.DeploymentNameGardenerResourceManager,
-		v1beta1constants.DeploymentNameKubeAPIServer,
-		v1beta1constants.DeploymentNameKubeControllerManager,
-		v1beta1constants.DeploymentNameKubeScheduler,
-	)
-
-	// RequiredControlPlaneEtcds is a set of the required shoot control plane etcds
-	// running in the seed.
-	RequiredControlPlaneEtcds = sets.NewString(
-		v1beta1constants.ETCDMain,
-		v1beta1constants.ETCDEvents,
-	)
-
-	// RequiredMonitoringSeedDeployments is a set of the required seed monitoring deployments.
-	RequiredMonitoringSeedDeployments = sets.NewString(
-		v1beta1constants.DeploymentNameGrafanaOperators,
-		v1beta1constants.DeploymentNameGrafanaUsers,
-		v1beta1constants.DeploymentNameKubeStateMetricsShoot,
-	)
-
-	// RequiredLoggingStatefulSets is a set of the required logging stateful sets.
-	RequiredLoggingStatefulSets = sets.NewString(
-		v1beta1constants.StatefulSetNameLoki,
-	)
-
-	// ManagedResourcesShoot is a set of managed resource names which contain resources deployed to the shoot.
-	ManagedResourcesShoot = sets.NewString(
-		ManagedResourceCoreNamespaceName,
-		ManagedResourceShootCoreName,
-		ManagedResourceAddonsName,
-	)
+	// ShootDNSIngressName is a constant for the DNS resources used for the shoot ingress addon.
+	ShootDNSIngressName = "ingress"
 )

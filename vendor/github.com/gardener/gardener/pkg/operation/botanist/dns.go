@@ -25,7 +25,7 @@ import (
 	"github.com/gardener/gardener/pkg/features"
 	gardenletfeatures "github.com/gardener/gardener/pkg/gardenlet/features"
 	"github.com/gardener/gardener/pkg/operation/botanist/component"
-	"github.com/gardener/gardener/pkg/operation/botanist/extensions/dns"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/extensions/dns"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 
 	dnsv1alpha1 "github.com/gardener/external-dns-management/pkg/apis/dns/v1alpha1"
@@ -154,6 +154,7 @@ func (b *Botanist) DefaultExternalDNSEntry(seedClient client.Client) component.D
 	return component.OpDestroy(dns.NewDNSEntry(
 		&dns.EntryValues{
 			Name: DNSExternalName,
+			TTL:  *b.Config.Controllers.Shoot.DNSEntryTTLSeconds,
 		},
 		b.Shoot.SeedNamespace,
 		b.K8sSeedClient.ChartApplier(),
@@ -223,6 +224,7 @@ func (b *Botanist) DefaultInternalDNSEntry(seedClient client.Client) component.D
 	return component.OpDestroy(dns.NewDNSEntry(
 		&dns.EntryValues{
 			Name: DNSInternalName,
+			TTL:  *b.Config.Controllers.Shoot.DNSEntryTTLSeconds,
 		},
 		b.Shoot.SeedNamespace,
 		b.K8sSeedClient.ChartApplier(),
@@ -383,6 +385,23 @@ func (b *Botanist) NeedsAdditionalDNSProviders() bool {
 // the shoot uses internal and external DNS.
 func (b *Botanist) APIServerSNIEnabled() bool {
 	return gardenletfeatures.FeatureGate.Enabled(features.APIServerSNI) && b.NeedsInternalDNS() && b.NeedsExternalDNS()
+}
+
+// APIServerSNIPodMutatorEnabled returns false if the value of the Shoot annotation
+// 'alpha.featuregates.shoot.gardener.cloud/apiserver-sni-pod-injector' is 'disable' or
+// APIServereSNI feature is disabled.
+func (b *Botanist) APIServerSNIPodMutatorEnabled() bool {
+	sniEnabled := b.APIServerSNIEnabled()
+	if !sniEnabled {
+		return false
+	}
+
+	vs, ok := b.Shoot.Info.GetAnnotations()[v1beta1constants.AnnotationShootAPIServerSNIPodInjector]
+	if !ok {
+		return true
+	}
+
+	return vs != v1beta1constants.AnnotationShootAPIServerSNIPodInjectorDisableValue
 }
 
 // DeleteDNSProviders deletes all DNS providers in the shoot namespace of the seed.

@@ -20,7 +20,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gardener/gardener/pkg/apis/core"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
@@ -28,30 +27,40 @@ import (
 	gardencorev1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	gardencorelisters "github.com/gardener/gardener/pkg/client/core/listers/core/v1beta1"
+	"github.com/gardener/gardener/pkg/client/kubernetes"
+	gardenerextensions "github.com/gardener/gardener/pkg/extensions"
 	"github.com/gardener/gardener/pkg/features"
 	gardenletfeatures "github.com/gardener/gardener/pkg/gardenlet/features"
+	"github.com/gardener/gardener/pkg/operation/botanist/component"
 	"github.com/gardener/gardener/pkg/operation/common"
 	"github.com/gardener/gardener/pkg/operation/garden"
 	"github.com/gardener/gardener/pkg/utils"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
-	versionutils "github.com/gardener/gardener/pkg/utils/version"
 
 	"github.com/Masterminds/semver"
 	dnsv1alpha1 "github.com/gardener/external-dns-management/pkg/apis/dns/v1alpha1"
-	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+var versionConstraintK8sGreaterEqual118 *semver.Constraints
+
+func init() {
+	var err error
+
+	versionConstraintK8sGreaterEqual118, err = semver.NewConstraint(">= 1.18")
+	utilruntime.Must(err)
+}
+
 // NewBuilder returns a new Builder.
 func NewBuilder() *Builder {
 	return &Builder{
-		shootObjectFunc: func() (*gardencorev1beta1.Shoot, error) {
+		shootObjectFunc: func(context.Context) (*gardencorev1beta1.Shoot, error) {
 			return nil, fmt.Errorf("shoot object is required but not set")
 		},
-		cloudProfileFunc: func(string) (*gardencorev1beta1.CloudProfile, error) {
+		cloudProfileFunc: func(context.Context, string) (*gardencorev1beta1.CloudProfile, error) {
 			return nil, fmt.Errorf("cloudprofile object is required but not set")
 		},
 		shootSecretFunc: func(context.Context, client.Client, string, string) (*corev1.Secret, error) {
@@ -62,25 +71,55 @@ func NewBuilder() *Builder {
 
 // WithShootObject sets the shootObjectFunc attribute at the Builder.
 func (b *Builder) WithShootObject(shootObject *gardencorev1beta1.Shoot) *Builder {
-	b.shootObjectFunc = func() (*gardencorev1beta1.Shoot, error) { return shootObject, nil }
+	b.shootObjectFunc = func(context.Context) (*gardencorev1beta1.Shoot, error) { return shootObject, nil }
+	return b
+}
+
+// WithShootObjectFromCluster sets the shootObjectFunc attribute at the Builder.
+func (b *Builder) WithShootObjectFromCluster(seedClient kubernetes.Interface, shootNamespace string) *Builder {
+	b.shootObjectFunc = func(ctx context.Context) (*gardencorev1beta1.Shoot, error) {
+		cluster, err := gardenerextensions.GetCluster(ctx, seedClient.Client(), shootNamespace)
+		if err != nil {
+			return nil, err
+		}
+		return cluster.Shoot, err
+	}
 	return b
 }
 
 // WithShootObjectFromLister sets the shootObjectFunc attribute at the Builder after fetching it from the given lister.
 func (b *Builder) WithShootObjectFromLister(shootLister gardencorelisters.ShootLister, namespace, name string) *Builder {
-	b.shootObjectFunc = func() (*gardencorev1beta1.Shoot, error) { return shootLister.Shoots(namespace).Get(name) }
+	b.shootObjectFunc = func(context.Context) (*gardencorev1beta1.Shoot, error) {
+		return shootLister.Shoots(namespace).Get(name)
+	}
 	return b
 }
 
 // WithCloudProfileObject sets the cloudProfileFunc attribute at the Builder.
 func (b *Builder) WithCloudProfileObject(cloudProfileObject *gardencorev1beta1.CloudProfile) *Builder {
-	b.cloudProfileFunc = func(string) (*gardencorev1beta1.CloudProfile, error) { return cloudProfileObject, nil }
+	b.cloudProfileFunc = func(context.Context, string) (*gardencorev1beta1.CloudProfile, error) { return cloudProfileObject, nil }
 	return b
 }
 
-// WithCloudProfileObjectFromLister sets the cloudProfileFunc attribute at the Builder after fetching it from the given lister.
-func (b *Builder) WithCloudProfileObjectFromLister(cloudProfileLister gardencorelisters.CloudProfileLister) *Builder {
-	b.cloudProfileFunc = func(name string) (*gardencorev1beta1.CloudProfile, error) { return cloudProfileLister.Get(name) }
+// WithCloudProfileObjectFromReader sets the cloudProfileFunc attribute at the Builder after fetching it from the
+// given API reader.
+func (b *Builder) WithCloudProfileObjectFromReader(reader client.Reader) *Builder {
+	b.cloudProfileFunc = func(ctx context.Context, name string) (*gardencorev1beta1.CloudProfile, error) {
+		obj := &gardencorev1beta1.CloudProfile{}
+		return obj, reader.Get(ctx, kutil.Key(name), obj)
+	}
+	return b
+}
+
+// WithCloudProfileObjectFromCluster sets the cloudProfileFunc attribute at the Builder.
+func (b *Builder) WithCloudProfileObjectFromCluster(seedClient kubernetes.Interface, shootNamespace string) *Builder {
+	b.cloudProfileFunc = func(ctx context.Context, _ string) (*gardencorev1beta1.CloudProfile, error) {
+		cluster, err := gardenerextensions.GetCluster(ctx, seedClient.Client(), shootNamespace)
+		if err != nil {
+			return nil, err
+		}
+		return cluster.CloudProfile, err
+	}
 	return b
 }
 
@@ -135,13 +174,13 @@ func (b *Builder) WithDefaultDomains(defaultDomains []*garden.Domain) *Builder {
 func (b *Builder) Build(ctx context.Context, c client.Client) (*Shoot, error) {
 	shoot := &Shoot{}
 
-	shootObject, err := b.shootObjectFunc()
+	shootObject, err := b.shootObjectFunc(ctx)
 	if err != nil {
 		return nil, err
 	}
 	shoot.Info = shootObject
 
-	cloudProfile, err := b.cloudProfileFunc(shootObject.Spec.CloudProfileName)
+	cloudProfile, err := b.cloudProfileFunc(ctx, shootObject.Spec.CloudProfileName)
 	if err != nil {
 		return nil, err
 	}
@@ -154,26 +193,20 @@ func (b *Builder) Build(ctx context.Context, c client.Client) (*Shoot, error) {
 	shoot.Secret = secret
 
 	shoot.DisableDNS = b.disableDNS
-	shoot.OperatingSystemConfigsMap = make(map[string]OperatingSystemConfigs, len(shoot.GetWorkerNames()))
 	shoot.HibernationEnabled = gardencorev1beta1helper.HibernationIsEnabled(shootObject)
 	shoot.SeedNamespace = ComputeTechnicalID(b.projectName, shootObject)
 	shoot.InternalClusterDomain = ConstructInternalClusterDomain(shootObject.Name, b.projectName, b.internalDomain)
 	shoot.ExternalClusterDomain = ConstructExternalClusterDomain(shootObject)
 	shoot.IgnoreAlerts = gardencorev1beta1helper.ShootIgnoresAlerts(shootObject)
-	shoot.WantsAlertmanager = !shoot.IgnoreAlerts && shootObject.Spec.Monitoring != nil && shootObject.Spec.Monitoring.Alerting != nil && len(shootObject.Spec.Monitoring.Alerting.EmailReceivers) > 0
+	shoot.WantsAlertmanager = gardencorev1beta1helper.ShootWantsAlertManager(shootObject)
 	shoot.WantsVerticalPodAutoscaler = gardencorev1beta1helper.ShootWantsVerticalPodAutoscaler(shootObject)
 	shoot.Components = &Components{
 		Extensions: &Extensions{
 			DNS: &DNS{},
 		},
-		ControlPlane: &ControlPlane{},
+		ControlPlane:     &ControlPlane{},
+		SystemComponents: &SystemComponents{},
 	}
-
-	extensions, err := calculateExtensions(c, shootObject, shoot.SeedNamespace)
-	if err != nil {
-		return nil, fmt.Errorf("cannot calculate required extensions for shoot %s: %v", shootObject.Name, err)
-	}
-	shoot.Extensions = extensions
 
 	// Determine information about external domain for shoot cluster.
 	externalDomain, err := ConstructExternalDomain(ctx, c, shootObject, secret, b.defaultDomains)
@@ -183,18 +216,19 @@ func (b *Builder) Build(ctx context.Context, c client.Client) (*Shoot, error) {
 	shoot.ExternalDomain = externalDomain
 
 	// Store the Kubernetes version in the format <major>.<minor> on the Shoot object.
-	v, err := semver.NewVersion(shootObject.Spec.Kubernetes.Version)
+	kubernetesVersion, err := semver.NewVersion(shootObject.Spec.Kubernetes.Version)
 	if err != nil {
 		return nil, err
 	}
-	shoot.KubernetesMajorMinorVersion = fmt.Sprintf("%d.%d", v.Major(), v.Minor())
-	shoot.KubernetesVersion = v
+	shoot.KubernetesVersion = kubernetesVersion
 
-	kubernetesVersionGeq118, err := versionutils.CheckVersionMeetsConstraint(shoot.KubernetesMajorMinorVersion, ">= 1.18")
+	gardenerVersion, err := semver.NewVersion(shootObject.Status.Gardener.Version)
 	if err != nil {
 		return nil, err
 	}
+	shoot.GardenerVersion = gardenerVersion
 
+	kubernetesVersionGeq118 := versionConstraintK8sGreaterEqual118.Check(kubernetesVersion)
 	shoot.KonnectivityTunnelEnabled = gardenletfeatures.FeatureGate.Enabled(features.KonnectivityTunnel) && kubernetesVersionGeq118
 	if konnectivityTunnelEnabled, err := strconv.ParseBool(shoot.Info.Annotations[v1beta1constants.AnnotationShootKonnectivityTunnel]); err == nil && kubernetesVersionGeq118 {
 		shoot.KonnectivityTunnelEnabled = konnectivityTunnelEnabled
@@ -212,18 +246,25 @@ func (b *Builder) Build(ctx context.Context, c client.Client) (*Shoot, error) {
 	}
 	shoot.Networks = networks
 
-	shoot.ResourceRefs = getResourceRefs(shootObject)
 	shoot.NodeLocalDNSEnabled = gardenletfeatures.FeatureGate.Enabled(features.NodeLocalDNS)
+	shoot.Purpose = gardencorev1beta1helper.GetPurpose(shootObject)
 
 	return shoot, nil
 }
 
-func calculateExtensions(gardenClient client.Client, shoot *gardencorev1beta1.Shoot, seedNamespace string) (map[string]Extension, error) {
-	var controllerRegistrations = &gardencorev1beta1.ControllerRegistrationList{}
-	if err := gardenClient.List(context.TODO(), controllerRegistrations); err != nil {
-		return nil, err
+// GetExtensionComponents returns a list of component.DeployMigrateWaiters of all extension components.
+func (s *Shoot) GetExtensionComponents() []component.DeployMigrateWaiter {
+	return []component.DeployMigrateWaiter{
+		s.Components.Extensions.BackupEntry,
+		s.Components.Extensions.ContainerRuntime,
+		s.Components.Extensions.ControlPlane,
+		s.Components.Extensions.ControlPlaneExposure,
+		s.Components.Extensions.Extension,
+		s.Components.Extensions.Infrastructure,
+		s.Components.Extensions.Network,
+		s.Components.Extensions.OperatingSystemConfig,
+		s.Components.Extensions.Worker,
 	}
-	return MergeExtensions(controllerRegistrations.Items, shoot.Spec.Extensions, seedNamespace)
 }
 
 // GetIngressFQDN returns the fully qualified domain name of ingress sub-resource for the Shoot cluster. The
@@ -233,14 +274,6 @@ func (s *Shoot) GetIngressFQDN(subDomain string) string {
 		return ""
 	}
 	return fmt.Sprintf("%s.%s.%s", subDomain, common.IngressPrefix, *(s.Info.Spec.DNS.Domain))
-}
-
-// GetPurpose returns the purpose of the shoot or 'evaluation' if it's nil.
-func (s *Shoot) GetPurpose() gardencorev1beta1.ShootPurpose {
-	if v := s.Info.Spec.Purpose; v != nil {
-		return *v
-	}
-	return gardencorev1beta1.ShootPurposeEvaluation
 }
 
 // GetWorkerNames returns a list of names of the worker groups in the Shoot manifest.
@@ -278,23 +311,6 @@ func (s *Shoot) GetNodeNetwork() *string {
 		return val
 	}
 	return nil
-}
-
-// KubernetesDashboardEnabled returns true if the kubernetes-dashboard addon is enabled in the Shoot manifest.
-func (s *Shoot) KubernetesDashboardEnabled() bool {
-	return s.Info.Spec.Addons != nil && s.Info.Spec.Addons.KubernetesDashboard != nil && s.Info.Spec.Addons.KubernetesDashboard.Enabled
-}
-
-// NginxIngressEnabled returns true if the nginx-ingress addon is enabled in the Shoot manifest.
-func (s *Shoot) NginxIngressEnabled() bool {
-	return s.Info.Spec.Addons != nil && s.Info.Spec.Addons.NginxIngress != nil && s.Info.Spec.Addons.NginxIngress.Enabled
-}
-
-// ComputeCloudConfigSecretName computes the name for a secret which contains the original cloud config for
-// the worker group with the given <workerName>. It is build by the cloud config secret prefix, the worker
-// name itself and a hash of the minor Kubernetes version of the Shoot cluster.
-func (s *Shoot) ComputeCloudConfigSecretName(workerName string) string {
-	return fmt.Sprintf("%s-%s-%s", common.CloudConfigPrefix, workerName, utils.ComputeSHA256Hex([]byte(s.KubernetesMajorMinorVersion))[:5])
 }
 
 // GetReplicas returns the given <wokenUp> number if the shoot is not hibernated, or zero otherwise.
@@ -434,69 +450,6 @@ func ConstructExternalDomain(ctx context.Context, client client.Client, shoot *g
 	return externalDomain, nil
 }
 
-// ExtensionDefaultTimeout is the default timeout and defines how long Gardener should wait
-// for a successful reconciliation of this extension resource.
-const ExtensionDefaultTimeout = 3 * time.Minute
-
-// MergeExtensions merges the given controller registrations with the given extensions, expecting that each type in
-// extensions is also represented in the registration. It ignores all extensions that were explicitly disabled in the
-// shoot spec.
-func MergeExtensions(registrations []gardencorev1beta1.ControllerRegistration, extensions []gardencorev1beta1.Extension, namespace string) (map[string]Extension, error) {
-	var (
-		typeToExtension    = make(map[string]Extension)
-		requiredExtensions = make(map[string]Extension)
-	)
-
-	// Extensions enabled by default for all Shoot clusters.
-	for _, reg := range registrations {
-		for _, res := range reg.Spec.Resources {
-			if res.Kind != extensionsv1alpha1.ExtensionResource {
-				continue
-			}
-
-			timeout := ExtensionDefaultTimeout
-			if res.ReconcileTimeout != nil {
-				timeout = res.ReconcileTimeout.Duration
-			}
-
-			typeToExtension[res.Type] = Extension{
-				Extension: extensionsv1alpha1.Extension{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      res.Type,
-						Namespace: namespace,
-					},
-					Spec: extensionsv1alpha1.ExtensionSpec{
-						DefaultSpec: extensionsv1alpha1.DefaultSpec{
-							Type: res.Type,
-						},
-					},
-				},
-				Timeout: timeout,
-			}
-
-			if res.GloballyEnabled != nil && *res.GloballyEnabled {
-				requiredExtensions[res.Type] = typeToExtension[res.Type]
-			}
-		}
-	}
-
-	// Extensions defined in Shoot resource.
-	for _, extension := range extensions {
-		if obj, ok := typeToExtension[extension.Type]; ok {
-			if utils.IsTrue(extension.Disabled) {
-				delete(requiredExtensions, extension.Type)
-				continue
-			}
-
-			obj.Spec.ProviderConfig = extension.ProviderConfig
-			requiredExtensions[extension.Type] = obj
-			continue
-		}
-	}
-
-	return requiredExtensions, nil
-}
-
 // ToNetworks return a network with computed cidrs and ClusterIPs
 // for a Shoot
 func ToNetworks(s *gardencorev1beta1.Shoot) (*Networks, error) {
@@ -605,13 +558,4 @@ func ComputeRequiredExtensions(shoot *gardencorev1beta1.Shoot, seed *gardencorev
 	}
 
 	return requiredExtensions
-}
-
-// getResourceRefs returns resource references from the Shoot spec as map[string]autoscalingv1.CrossVersionObjectReference.
-func getResourceRefs(shoot *gardencorev1beta1.Shoot) map[string]autoscalingv1.CrossVersionObjectReference {
-	resourceRefs := make(map[string]autoscalingv1.CrossVersionObjectReference)
-	for _, r := range shoot.Spec.Resources {
-		resourceRefs[r.Name] = r.ResourceRef
-	}
-	return resourceRefs
 }

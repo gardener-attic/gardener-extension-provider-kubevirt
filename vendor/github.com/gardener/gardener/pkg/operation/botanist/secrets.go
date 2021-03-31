@@ -23,17 +23,16 @@ import (
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	gardencorev1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/konnectivity"
 	"github.com/gardener/gardener/pkg/operation/common"
 	"github.com/gardener/gardener/pkg/operation/seed"
 	"github.com/gardener/gardener/pkg/operation/shootsecrets"
 	"github.com/gardener/gardener/pkg/utils"
 	"github.com/gardener/gardener/pkg/utils/flow"
-	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/secrets"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -44,9 +43,9 @@ import (
 // credentials are computed which will be used to secure the Ingress resources and the kube-apiserver itself.
 // Server certificates for the exposed monitoring endpoints (via Ingress) are generated as well.
 func (b *Botanist) GenerateAndSaveSecrets(ctx context.Context) error {
-	gardenerResourceDataList := gardencorev1alpha1helper.GardenerResourceDataList(b.ShootState.Spec.Gardener)
+	gardenerResourceDataList := gardencorev1alpha1helper.GardenerResourceDataList(b.ShootState.Spec.Gardener).DeepCopy()
 
-	if val, ok := common.GetShootOperationAnnotation(b.Shoot.Info.Annotations); ok && val == common.ShootOperationRotateKubeconfigCredentials {
+	if val, ok := b.Shoot.Info.Annotations[v1beta1constants.GardenerOperation]; ok && val == common.ShootOperationRotateKubeconfigCredentials {
 		if err := b.rotateKubeconfigSecrets(ctx, &gardenerResourceDataList); err != nil {
 			return err
 		}
@@ -58,7 +57,7 @@ func (b *Botanist) GenerateAndSaveSecrets(ctx context.Context) error {
 				return err
 			}
 		} else {
-			if err := b.cleanupTunnelSecrets(ctx, &gardenerResourceDataList, common.KonnectivityServerKubeconfig, common.KonnectivityServerCertName); err != nil {
+			if err := b.cleanupTunnelSecrets(ctx, &gardenerResourceDataList, konnectivity.SecretNameServerKubeconfig, konnectivity.SecretNameServerTLS); err != nil {
 				return err
 			}
 		}
@@ -75,7 +74,7 @@ func (b *Botanist) GenerateAndSaveSecrets(ctx context.Context) error {
 	secretsManager := shootsecrets.NewSecretsManager(
 		gardenerResourceDataList,
 		b.generateStaticTokenConfig(),
-		wantedCertificateAuthorities,
+		b.wantedCertificateAuthorities(),
 		b.generateWantedSecretConfigs,
 	)
 
@@ -104,7 +103,7 @@ func (b *Botanist) DeploySecrets(ctx context.Context) error {
 	secretsManager := shootsecrets.NewSecretsManager(
 		gardenerResourceDataList,
 		b.generateStaticTokenConfig(),
-		wantedCertificateAuthorities,
+		b.wantedCertificateAuthorities(),
 		b.generateWantedSecretConfigs,
 	)
 
@@ -213,18 +212,25 @@ func (b *Botanist) fetchExistingSecrets(ctx context.Context) (map[string]*corev1
 }
 
 func (b *Botanist) rotateKubeconfigSecrets(ctx context.Context, gardenerResourceDataList *gardencorev1alpha1helper.GardenerResourceDataList) error {
-	for _, secretName := range []string{common.StaticTokenSecretName, common.BasicAuthSecretName, common.KubecfgSecretName} {
+	secrets := []string{
+		common.StaticTokenSecretName,
+		common.BasicAuthSecretName,
+		common.KubecfgSecretName,
+	}
+	if b.Shoot.KonnectivityTunnelEnabled {
+		secrets = append(secrets, konnectivity.SecretNameServerKubeconfig)
+	}
+
+	for _, secretName := range secrets {
 		if err := b.K8sSeedClient.Client().Delete(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: b.Shoot.SeedNamespace}}); client.IgnoreNotFound(err) != nil {
 			return err
 		}
 		gardenerResourceDataList.Delete(secretName)
 	}
-	_, err := kutil.TryUpdateShootAnnotations(ctx, b.K8sGardenClient.GardenCore(), retry.DefaultRetry, b.Shoot.Info.ObjectMeta, func(shoot *gardencorev1beta1.Shoot) (*gardencorev1beta1.Shoot, error) {
-		delete(shoot.Annotations, v1beta1constants.GardenerOperation)
-		delete(shoot.Annotations, common.ShootOperationDeprecated)
-		return shoot, nil
-	})
-	return err
+
+	oldObj := b.Shoot.Info.DeepCopy()
+	delete(b.Shoot.Info.Annotations, v1beta1constants.GardenerOperation)
+	return b.K8sGardenClient.Client().Patch(ctx, b.Shoot.Info, client.MergeFrom(oldObj))
 }
 
 func (b *Botanist) deleteBasicAuthDependantSecrets(ctx context.Context, gardenerResourceDataList *gardencorev1alpha1helper.GardenerResourceDataList) error {
@@ -304,6 +310,9 @@ func (b *Botanist) SyncShootCredentialsToGarden(ctx context.Context) error {
 		kubecfgURL = common.GetAPIServerDomain(*b.Shoot.ExternalClusterDomain)
 	}
 
+	// Secrets which are created by Gardener itself are usually excluded from informers to improve performance.
+	// Hence, if new secrets are synced to the Garden cluster, please consider adding the used `gardener.cloud/role`
+	// label value to the `v1beta1constants.ControlPlaneSecretRoles` list.
 	projectSecrets := []projectSecret{
 		{
 			secretName:  common.KubecfgSecretName,
@@ -361,14 +370,4 @@ func (b *Botanist) cleanupTunnelSecrets(ctx context.Context, gardenerResourceDat
 		gardenerResourceDataList.Delete(secret)
 	}
 	return nil
-}
-
-func dnsNamesForEtcd(namespace string) []string {
-	names := []string{
-		fmt.Sprintf("%s-local", v1beta1constants.ETCDMain),
-		fmt.Sprintf("%s-local", v1beta1constants.ETCDEvents),
-	}
-	names = append(names, kutil.DNSNamesForService(fmt.Sprintf("%s-client", v1beta1constants.ETCDMain), namespace)...)
-	names = append(names, kutil.DNSNamesForService(fmt.Sprintf("%s-client", v1beta1constants.ETCDEvents), namespace)...)
-	return names
 }

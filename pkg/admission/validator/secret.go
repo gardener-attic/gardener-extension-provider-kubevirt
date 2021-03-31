@@ -22,7 +22,6 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt/validation"
@@ -46,7 +45,7 @@ func (s *secret) InjectClient(client client.Client) error {
 
 // Validate checks whether the given new secret is in use by Shoot with provider.type=kubevirt
 // and if yes, it check whether the new secret contains a valid kubeconfig.
-func (s *secret) Validate(ctx context.Context, newObj, oldObj runtime.Object) error {
+func (s *secret) Validate(ctx context.Context, newObj, oldObj client.Object) error {
 	secret, ok := newObj.(*corev1.Secret)
 	if !ok {
 		return errors.Errorf("wrong object type %T", newObj)
