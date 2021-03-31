@@ -275,7 +275,7 @@ var _ = Describe("Machines", func() {
 				scheme = runtime.NewScheme()
 				Expect(apiskubevirt.AddToScheme(scheme)).NotTo(HaveOccurred())
 				Expect(kubevirtv1alpha1.AddToScheme(scheme)).NotTo(HaveOccurred())
-				decoder = serializer.NewCodecFactory(scheme).UniversalDecoder()
+				decoder = serializer.NewCodecFactory(scheme, serializer.EnableStrict).UniversalDecoder()
 
 				cluster = createCluster(cloudProfileName, shootVersion, images)
 

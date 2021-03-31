@@ -1,18 +1,20 @@
 module github.com/gardener/gardener-extension-provider-kubevirt
 
-go 1.15
+go 1.16
 
 require (
+	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/ahmetb/gen-crd-api-reference-docs v0.2.0
 	github.com/coreos/go-systemd/v22 v22.1.0
 	github.com/gardener/etcd-druid v0.3.0
-	github.com/gardener/gardener v1.19.0
+	github.com/gardener/gardener v1.19.1-0.20210401122359-e16e6ec0002e
 	github.com/gardener/machine-controller-manager v0.36.0
 	github.com/go-logr/logr v0.3.0
 	github.com/gobuffalo/packr/v2 v2.8.1
 	github.com/golang/mock v1.5.0
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200626054723-37f83d1996bc
-	github.com/onsi/ginkgo v1.14.1
+	github.com/mitchellh/copystructure v1.1.1 // indirect
+	github.com/onsi/ginkgo v1.14.2
 	github.com/onsi/gomega v1.10.5
 	github.com/openshift/custom-resource-status v0.0.0-20200602122900-c002fd1547ca // indirect
 	github.com/pkg/errors v0.9.1
