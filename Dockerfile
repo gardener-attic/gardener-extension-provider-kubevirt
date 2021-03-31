@@ -1,12 +1,12 @@
 ############# builder
-FROM golang:1.13.9 AS builder
+FROM eu.gcr.io/gardener-project/3rd/golang:1.15.7 AS builder
 
 WORKDIR /go/src/github.com/gardener/gardener-extension-provider-kubevirt
 COPY . .
 RUN make install
 
 ############# base
-FROM alpine:3.12.0 AS base
+FROM eu.gcr.io/gardener-project/3rd/alpine:3.12.3 AS base
 
 ############# gardener-extension-provider-kubevirt
 FROM base AS gardener-extension-provider-kubevirt

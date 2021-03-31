@@ -18,15 +18,21 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/gardener/gardener/charts"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	"github.com/gardener/gardener/pkg/operation/botanist/controlplane/clusterautoscaler"
-	"github.com/gardener/gardener/pkg/operation/botanist/controlplane/kubescheduler"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/clusterautoscaler"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/etcd"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/extensions/operatingsystemconfig/downloader"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/konnectivity"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/kubecontrollermanager"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/kubescheduler"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/metricsserver"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/resourcemanager"
 	"github.com/gardener/gardener/pkg/operation/common"
 	"github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/secrets"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/authentication/user"
 )
 
@@ -37,38 +43,50 @@ var basicAuthSecretAPIServer = &secrets.BasicAuthSecretConfig{
 	PasswordLength: 32,
 }
 
-var wantedCertificateAuthorities = map[string]*secrets.CertificateSecretConfig{
-	v1beta1constants.SecretNameCACluster: {
-		Name:       v1beta1constants.SecretNameCACluster,
-		CommonName: "kubernetes",
-		CertType:   secrets.CACert,
-	},
-	v1beta1constants.SecretNameCAETCD: {
-		Name:       v1beta1constants.SecretNameCAETCD,
-		CommonName: "etcd",
-		CertType:   secrets.CACert,
-	},
-	v1beta1constants.SecretNameCAFrontProxy: {
-		Name:       v1beta1constants.SecretNameCAFrontProxy,
-		CommonName: "front-proxy",
-		CertType:   secrets.CACert,
-	},
-	v1beta1constants.SecretNameCAKubelet: {
-		Name:       v1beta1constants.SecretNameCAKubelet,
-		CommonName: "kubelet",
-		CertType:   secrets.CACert,
-	},
-	v1beta1constants.SecretNameCAMetricsServer: {
-		Name:       v1beta1constants.SecretNameCAMetricsServer,
-		CommonName: "metrics-server",
-		CertType:   secrets.CACert,
-	},
+func (b *Botanist) wantedCertificateAuthorities() map[string]*secrets.CertificateSecretConfig {
+	wantedCertificateAuthorities := map[string]*secrets.CertificateSecretConfig{
+		v1beta1constants.SecretNameCACluster: {
+			Name:       v1beta1constants.SecretNameCACluster,
+			CommonName: "kubernetes",
+			CertType:   secrets.CACert,
+		},
+		v1beta1constants.SecretNameCAETCD: {
+			Name:       etcd.SecretNameCA,
+			CommonName: "etcd",
+			CertType:   secrets.CACert,
+		},
+		v1beta1constants.SecretNameCAFrontProxy: {
+			Name:       v1beta1constants.SecretNameCAFrontProxy,
+			CommonName: "front-proxy",
+			CertType:   secrets.CACert,
+		},
+		v1beta1constants.SecretNameCAKubelet: {
+			Name:       v1beta1constants.SecretNameCAKubelet,
+			CommonName: "kubelet",
+			CertType:   secrets.CACert,
+		},
+		v1beta1constants.SecretNameCAMetricsServer: {
+			Name:       metricsserver.SecretNameCA,
+			CommonName: "metrics-server",
+			CertType:   secrets.CACert,
+		},
+	}
+
+	if b.Shoot.KonnectivityTunnelEnabled && b.APIServerSNIEnabled() {
+		wantedCertificateAuthorities[konnectivity.SecretNameServerCA] = &secrets.CertificateSecretConfig{
+			Name:       konnectivity.SecretNameServerCA,
+			CommonName: konnectivity.ServerName,
+			CertType:   secrets.CACert,
+		}
+	}
+
+	return wantedCertificateAuthorities
 }
 
 var vpaSecrets = map[string]string{
-	common.VpaAdmissionControllerImageName: common.VpaAdmissionControllerName,
-	common.VpaRecommenderImageName:         common.VpaRecommenderName,
-	common.VpaUpdaterImageName:             common.VpaUpdaterName,
+	charts.ImageNameVpaAdmissionController: common.VpaAdmissionControllerName,
+	charts.ImageNameVpaRecommender:         common.VpaRecommenderName,
+	charts.ImageNameVpaUpdater:             common.VpaUpdaterName,
 }
 
 func (b *Botanist) generateStaticTokenConfig() *secrets.StaticTokenSecretConfig {
@@ -88,9 +106,9 @@ func (b *Botanist) generateStaticTokenConfig() *secrets.StaticTokenSecretConfig 
 	}
 
 	if b.Shoot.KonnectivityTunnelEnabled {
-		staticTokenConfig.Tokens[common.KonnectivityServerUserName] = secrets.TokenConfig{
-			Username: common.KonnectivityServerUserName,
-			UserID:   common.KonnectivityServerUserName,
+		staticTokenConfig.Tokens[konnectivity.ServerAudience] = secrets.TokenConfig{
+			Username: konnectivity.ServerAudience,
+			UserID:   konnectivity.ServerAudience,
 		}
 	}
 
@@ -122,14 +140,17 @@ func (b *Botanist) generateWantedSecretConfigs(basicAuthAPIServer *secrets.Basic
 			common.GetAPIServerDomain(b.Shoot.InternalClusterDomain),
 		}, kubernetes.DNSNamesForService("kubernetes", "default")...)
 
-		kubeControllerManagerCertDNSNames = kubernetes.DNSNamesForService("kube-controller-manager", b.Shoot.SeedNamespace)
+		kubeControllerManagerCertDNSNames = kubernetes.DNSNamesForService(kubecontrollermanager.ServiceName, b.Shoot.SeedNamespace)
 		kubeSchedulerCertDNSNames         = kubernetes.DNSNamesForService(kubescheduler.ServiceName, b.Shoot.SeedNamespace)
 
 		konnectivityServerDNSNames = append([]string{
 			common.GetAPIServerDomain(b.Shoot.InternalClusterDomain),
-		}, kubernetes.DNSNamesForService(common.KonnectivityServerCertName, b.Shoot.SeedNamespace)...)
+		}, kubernetes.DNSNamesForService(konnectivity.ServerName, b.Shoot.SeedNamespace)...)
 
-		etcdCertDNSNames = dnsNamesForEtcd(b.Shoot.SeedNamespace)
+		etcdCertDNSNames = append(
+			b.Shoot.Components.ControlPlane.EtcdMain.ServiceDNSNames(),
+			b.Shoot.Components.ControlPlane.EtcdEvents.ServiceDNSNames()...,
+		)
 
 		endUserCrtValidity = common.EndUserCrtValidity
 	)
@@ -194,7 +215,7 @@ func (b *Botanist) generateWantedSecretConfigs(basicAuthAPIServer *secrets.Basic
 		// Secret definition for kube-controller-manager
 		&secrets.ControlPlaneSecretConfig{
 			CertificateSecretConfig: &secrets.CertificateSecretConfig{
-				Name: "kube-controller-manager",
+				Name: kubecontrollermanager.SecretName,
 
 				CommonName:   user.KubeControllerManager,
 				Organization: nil,
@@ -213,7 +234,7 @@ func (b *Botanist) generateWantedSecretConfigs(basicAuthAPIServer *secrets.Basic
 		// Secret definition for kube-controller-manager server
 		&secrets.ControlPlaneSecretConfig{
 			CertificateSecretConfig: &secrets.CertificateSecretConfig{
-				Name: common.KubeControllerManagerServerName,
+				Name: kubecontrollermanager.SecretNameServer,
 
 				CommonName:   v1beta1constants.DeploymentNameKubeControllerManager,
 				Organization: nil,
@@ -283,9 +304,9 @@ func (b *Botanist) generateWantedSecretConfigs(basicAuthAPIServer *secrets.Basic
 		// Secret definition for gardener-resource-manager
 		&secrets.ControlPlaneSecretConfig{
 			CertificateSecretConfig: &secrets.CertificateSecretConfig{
-				Name: "gardener-resource-manager",
+				Name: resourcemanager.SecretName,
 
-				CommonName:   "gardener.cloud:system:gardener-resource-manager",
+				CommonName:   resourcemanager.UserName,
 				Organization: []string{user.SystemPrivilegedGroup},
 				DNSNames:     nil,
 				IPAddresses:  nil,
@@ -416,9 +437,9 @@ func (b *Botanist) generateWantedSecretConfigs(basicAuthAPIServer *secrets.Basic
 		// Secret definition for cloud-config-downloader
 		&secrets.ControlPlaneSecretConfig{
 			CertificateSecretConfig: &secrets.CertificateSecretConfig{
-				Name: "cloud-config-downloader",
+				Name: downloader.SecretName,
 
-				CommonName:   "cloud-config-downloader",
+				CommonName:   downloader.SecretName,
 				Organization: nil,
 				DNSNames:     nil,
 				IPAddresses:  nil,
@@ -460,14 +481,14 @@ func (b *Botanist) generateWantedSecretConfigs(basicAuthAPIServer *secrets.Basic
 
 		// Secret definition for service-account-key
 		&secrets.RSASecretConfig{
-			Name:       "service-account-key",
+			Name:       v1beta1constants.SecretNameServiceAccountKey,
 			Bits:       4096,
 			UsedForSSH: false,
 		},
 
 		// Secret definition for etcd server
 		&secrets.CertificateSecretConfig{
-			Name: common.EtcdServerTLS,
+			Name: etcd.SecretNameServer,
 
 			CommonName:   "etcd-server",
 			Organization: nil,
@@ -480,7 +501,7 @@ func (b *Botanist) generateWantedSecretConfigs(basicAuthAPIServer *secrets.Basic
 
 		// Secret definition for etcd server
 		&secrets.CertificateSecretConfig{
-			Name: common.EtcdClientTLS,
+			Name: etcd.SecretNameClient,
 
 			CommonName:   "etcd-client",
 			Organization: nil,
@@ -493,16 +514,12 @@ func (b *Botanist) generateWantedSecretConfigs(basicAuthAPIServer *secrets.Basic
 
 		// Secret definition for metrics-server
 		&secrets.CertificateSecretConfig{
-			Name: "metrics-server",
+			Name: metricsserver.SecretNameServer,
 
 			CommonName:   "metrics-server",
 			Organization: nil,
-			DNSNames: []string{
-				"metrics-server",
-				fmt.Sprintf("metrics-server.%s", metav1.NamespaceSystem),
-				fmt.Sprintf("metrics-server.%s.svc", metav1.NamespaceSystem),
-			},
-			IPAddresses: nil,
+			DNSNames:     b.Shoot.Components.SystemComponents.MetricsServer.ServiceDNSNames(),
+			IPAddresses:  nil,
 
 			CertType:  secrets.ServerClientCert,
 			SigningCA: certificateAuthorities[v1beta1constants.SecretNameCAMetricsServer],
@@ -615,7 +632,7 @@ func (b *Botanist) generateWantedSecretConfigs(basicAuthAPIServer *secrets.Basic
 		var konnectivityServerToken *secrets.Token
 		if staticToken != nil {
 			var err error
-			konnectivityServerToken, err = staticToken.GetTokenForUsername(common.KonnectivityServerUserName)
+			konnectivityServerToken, err = staticToken.GetTokenForUsername(konnectivity.ServerAudience)
 			if err != nil {
 				return nil, err
 			}
@@ -624,7 +641,7 @@ func (b *Botanist) generateWantedSecretConfigs(basicAuthAPIServer *secrets.Basic
 		secretList = append(secretList,
 			&secrets.ControlPlaneSecretConfig{
 				CertificateSecretConfig: &secrets.CertificateSecretConfig{
-					Name:      common.KonnectivityServerKubeconfig,
+					Name:      konnectivity.SecretNameServerKubeconfig,
 					SigningCA: certificateAuthorities[v1beta1constants.SecretNameCACluster],
 				},
 
@@ -638,14 +655,29 @@ func (b *Botanist) generateWantedSecretConfigs(basicAuthAPIServer *secrets.Basic
 			},
 			&secrets.ControlPlaneSecretConfig{
 				CertificateSecretConfig: &secrets.CertificateSecretConfig{
-					Name:       common.KonnectivityServerCertName,
-					CommonName: common.KonnectivityServerCertName,
+					Name:       konnectivity.SecretNameServerTLS,
+					CommonName: konnectivity.SecretNameServerTLS,
 					DNSNames:   konnectivityServerDNSNames,
 
 					CertType:  secrets.ServerCert,
 					SigningCA: certificateAuthorities[v1beta1constants.SecretNameCACluster],
 				},
 			})
+
+		if b.APIServerSNIEnabled() {
+			secretList = append(secretList,
+				&secrets.CertificateSecretConfig{
+					Name: konnectivity.SecretNameServerTLSClient,
+
+					CommonName:   "kube-apiserver",
+					Organization: nil,
+					DNSNames:     nil,
+					IPAddresses:  nil,
+
+					CertType:  secrets.ClientCert,
+					SigningCA: certificateAuthorities[konnectivity.SecretNameServerCA],
+				})
+		}
 	} else {
 		secretList = append(secretList,
 			// Secret definition for vpn-shoot (OpenVPN server side)

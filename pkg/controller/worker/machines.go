@@ -34,10 +34,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // MachineClassKind yields the name of the KubeVirt machine class.
@@ -45,8 +45,13 @@ func (w *workerDelegate) MachineClassKind() string {
 	return "MachineClass"
 }
 
-// MachineClassList yields a newly initialized KubeVirtMachineClassList object.
-func (w *workerDelegate) MachineClassList() runtime.Object {
+// MachineClass yields a newly initialized machine class object.
+func (w *workerDelegate) MachineClass() client.Object {
+	return &machinev1alpha1.MachineClass{}
+}
+
+// MachineClassList yields a newly initialized MachineClassList object.
+func (w *workerDelegate) MachineClassList() client.ObjectList {
 	return &machinev1alpha1.MachineClassList{}
 }
 

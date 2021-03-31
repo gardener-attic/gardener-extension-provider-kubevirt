@@ -18,7 +18,11 @@ import (
 	"context"
 
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	seedmanagementv1alpha1 "github.com/gardener/gardener/pkg/apis/seedmanagement/v1alpha1"
 	gardencorelisters "github.com/gardener/gardener/pkg/client/core/listers/core/v1beta1"
+	"github.com/gardener/gardener/pkg/gardenlet/apis/config"
+	confighelper "github.com/gardener/gardener/pkg/gardenlet/apis/config/helper"
+	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -69,6 +73,16 @@ func ShootFilterFunc(seedName string, seedLister gardencorelisters.SeedLister, l
 		}
 		return SeedLabelsMatch(seedLister, *shoot.Status.SeedName, labelSelector)
 	}
+}
+
+// ShootIsManagedByThisGardenlet checks if the given shoot is managed by this gardenlet by comparing it with the seed name from the GardenletConfiguration
+// or by checking whether the seed labels mathes the seed seoector from the GardenletConfiguration.
+func ShootIsManagedByThisGardenlet(shoot *gardencorev1beta1.Shoot, gc *config.GardenletConfiguration, seedLister gardencorelisters.SeedLister) bool {
+	seedName := confighelper.SeedNameFromSeedConfig(gc.SeedConfig)
+	if len(seedName) > 0 {
+		return *shoot.Spec.SeedName == seedName
+	}
+	return SeedLabelsMatch(seedLister, *shoot.Spec.SeedName, gc.SeedSelector)
 }
 
 // SeedLabelsMatch fetches the given seed via a lister by its name and then checks whether the given label selector matches
@@ -138,5 +152,35 @@ func BackupEntryFilterFunc(ctx context.Context, c client.Client, seedName string
 			return *backupEntry.Spec.SeedName == seedName
 		}
 		return seedLabelsMatchWithClient(ctx, c, *backupEntry.Spec.SeedName, labelSelector)
+	}
+}
+
+// ManagedSeedFilterFunc returns a filtering func for ManagedSeeds that checks if the ManagedSeed references a Shoot scheduled on a Seed, for which the gardenlet is responsible..
+func ManagedSeedFilterFunc(ctx context.Context, c client.Client, seedName string, labelSelector *metav1.LabelSelector) func(obj interface{}) bool {
+	return func(obj interface{}) bool {
+		managedSeed, ok := obj.(*seedmanagementv1alpha1.ManagedSeed)
+		if !ok {
+			return false
+		}
+		if managedSeed.Spec.Shoot == nil || managedSeed.Spec.Shoot.Name == "" {
+			return false
+		}
+		shoot := &gardencorev1beta1.Shoot{}
+		if err := c.Get(ctx, kutil.Key(managedSeed.Namespace, managedSeed.Spec.Shoot.Name), shoot); err != nil {
+			return false
+		}
+		if shoot.Spec.SeedName == nil {
+			return false
+		}
+		if len(seedName) > 0 {
+			if shoot.Status.SeedName == nil || *shoot.Spec.SeedName == *shoot.Status.SeedName {
+				return *shoot.Spec.SeedName == seedName
+			}
+			return *shoot.Status.SeedName == seedName
+		}
+		if shoot.Status.SeedName == nil || *shoot.Spec.SeedName == *shoot.Status.SeedName {
+			return seedLabelsMatchWithClient(ctx, c, *shoot.Spec.SeedName, labelSelector)
+		}
+		return seedLabelsMatchWithClient(ctx, c, *shoot.Status.SeedName, labelSelector)
 	}
 }

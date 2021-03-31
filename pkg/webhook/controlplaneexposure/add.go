@@ -24,7 +24,7 @@ import (
 	"github.com/gardener/gardener/extensions/pkg/webhook/controlplane/genericmutator"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
@@ -48,7 +48,7 @@ func AddToManagerWithOptions(mgr manager.Manager, opts AddOptions) (*extensionsw
 	return controlplane.New(mgr, controlplane.Args{
 		Kind:     controlplane.KindSeed,
 		Provider: kubevirt.Type,
-		Types:    []runtime.Object{&appsv1.Deployment{}, &corev1.Service{}, &druidv1alpha1.Etcd{}},
+		Types:    []client.Object{&appsv1.Deployment{}, &corev1.Service{}, &druidv1alpha1.Etcd{}},
 		Mutator:  genericmutator.NewMutator(NewEnsurer(&opts.ETCDStorage, logger), nil, nil, nil, logger),
 	})
 }

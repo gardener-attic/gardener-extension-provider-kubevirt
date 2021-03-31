@@ -19,50 +19,54 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/gardener/gardener/charts"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/features"
 	gardenletfeatures "github.com/gardener/gardener/pkg/gardenlet/features"
 	"github.com/gardener/gardener/pkg/operation/common"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	autoscalingv1beta2 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta2"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 )
 
 // DeploySeedLogging will install the Helm release "seed-bootstrap/charts/loki" in the Seed clusters.
 func (b *Botanist) DeploySeedLogging(ctx context.Context) error {
-
-	// TODO: remove in a future release
-	// Clean up the stale loki-vpa.
-	lokiVpa := &autoscalingv1beta2.VerticalPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: "loki-vpa", Namespace: b.Shoot.SeedNamespace}}
-	if err := b.K8sSeedClient.Client().Delete(ctx, lokiVpa); client.IgnoreNotFound(err) != nil {
-		return err
-	}
-
-	if b.Shoot.GetPurpose() == gardencorev1beta1.ShootPurposeTesting || !gardenletfeatures.FeatureGate.Enabled(features.Logging) {
-		return common.DeleteLoggingStack(ctx, b.K8sSeedClient.Client(), b.Shoot.SeedNamespace)
+	if b.Shoot.Purpose == gardencorev1beta1.ShootPurposeTesting || !gardenletfeatures.FeatureGate.Enabled(features.Logging) {
+		return common.DeleteShootLoggingStack(ctx, b.K8sSeedClient.Client(), b.Shoot.SeedNamespace)
 	}
 
 	images, err := b.InjectSeedSeedImages(map[string]interface{}{},
-		common.LokiImageName,
+		charts.ImageNameLoki,
+		charts.ImageNameLokiCurator,
 	)
 	if err != nil {
 		return err
 	}
 
+	lokiValues := map[string]interface{}{
+		"global":   images,
+		"replicas": b.Shoot.GetReplicas(1),
+	}
+
 	hvpaValues := make(map[string]interface{})
 	hvpaEnabled := gardenletfeatures.FeatureGate.Enabled(features.HVPA)
-	if b.ShootedSeed != nil {
+	if b.ManagedSeed != nil {
 		hvpaEnabled = gardenletfeatures.FeatureGate.Enabled(features.HVPAForShootedSeed)
 	}
 
 	hvpaValues["enabled"] = hvpaEnabled
+	lokiValues["hvpa"] = hvpaValues
 
-	lokiValues := map[string]interface{}{
-		"global":   images,
-		"replicas": b.Shoot.GetReplicas(1),
-		"hvpa":     hvpaValues,
+	if hvpaEnabled {
+		currentResources, err := common.GetContainerResourcesInStatefulSet(ctx, b.K8sSeedClient.Client(), kutil.Key(b.Shoot.SeedNamespace, "loki"))
+		if err != nil {
+			return err
+		}
+		if len(currentResources) != 0 && currentResources["loki"] != nil {
+			lokiValues["resources"] = map[string]interface{}{
+				"loki": currentResources["loki"],
+			}
+		}
 	}
 
-	return b.K8sSeedClient.ChartApplier().Apply(ctx, filepath.Join(common.ChartPath, "seed-bootstrap", "charts", "loki"), b.Shoot.SeedNamespace, fmt.Sprintf("%s-logging", b.Shoot.SeedNamespace), kubernetes.Values(lokiValues))
+	return b.K8sSeedClient.ChartApplier().Apply(ctx, filepath.Join(charts.Path, "seed-bootstrap", "charts", "loki"), b.Shoot.SeedNamespace, fmt.Sprintf("%s-logging", b.Shoot.SeedNamespace), kubernetes.Values(lokiValues))
 }

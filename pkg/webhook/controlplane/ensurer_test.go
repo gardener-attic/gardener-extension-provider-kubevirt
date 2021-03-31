@@ -21,7 +21,7 @@ import (
 	"github.com/coreos/go-systemd/v22/unit"
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	extensionswebhook "github.com/gardener/gardener/extensions/pkg/webhook"
-	"github.com/gardener/gardener/extensions/pkg/webhook/controlplane/genericmutator"
+	gcontext "github.com/gardener/gardener/extensions/pkg/webhook/context"
 	"github.com/gardener/gardener/extensions/pkg/webhook/controlplane/test"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
@@ -50,8 +50,8 @@ var _ = Describe("Ensurer", func() {
 	var (
 		ctrl *gomock.Controller
 
-		emptyContext          = genericmutator.NewInternalEnsurerContext(&extensionscontroller.Cluster{})
-		seedHostsShootContext = genericmutator.NewInternalEnsurerContext(
+		emptyContext          = gcontext.NewInternalGardenContext(&extensionscontroller.Cluster{})
+		seedHostsShootContext = gcontext.NewInternalGardenContext(
 			&extensionscontroller.Cluster{
 				Shoot: &gardencorev1beta1.Shoot{
 					Spec: gardencorev1beta1.ShootSpec{

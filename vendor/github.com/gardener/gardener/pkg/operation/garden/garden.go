@@ -163,6 +163,12 @@ func DomainIsDefaultDomain(domain string, defaultDomains []*Domain) *Domain {
 	return nil
 }
 
+const (
+	// ControllerManagerInternalConfigMapName is the name of the internal config map in which the Gardener controller
+	// manager stores its configuration.
+	ControllerManagerInternalConfigMapName = "gardener-controller-manager-internal-config"
+)
+
 // ReadGardenSecrets reads the Kubernetes Secrets from the Garden cluster which are independent of Shoot clusters.
 // The Secret objects are stored on the Controller in order to pass them to created Garden objects later.
 func ReadGardenSecrets(k8sInformers kubeinformers.SharedInformerFactory, k8sGardenCoreInformers gardencoreinformers.SharedInformerFactory) (map[string]*corev1.Secret, error) {
@@ -291,23 +297,23 @@ func ReadGardenSecrets(k8sInformers kubeinformers.SharedInformerFactory, k8sGard
 
 // VerifyInternalDomainSecret verifies that the internal domain secret matches to the internal domain secret used for
 // existing Shoot clusters. It is not allowed to change the internal domain secret if there are existing Shoot clusters.
-func VerifyInternalDomainSecret(k8sGardenClient kubernetes.Interface, numberOfShoots int, internalDomainSecret *corev1.Secret) error {
+func VerifyInternalDomainSecret(ctx context.Context, k8sGardenClient kubernetes.Interface, numberOfShoots int, internalDomainSecret *corev1.Secret) error {
 	_, currentDomain, _, _, err := common.GetDomainInfoFromAnnotations(internalDomainSecret.Annotations)
 	if err != nil {
 		return fmt.Errorf("error getting information out of current internal domain secret: %+v", err)
 	}
 
 	internalConfigMap := &corev1.ConfigMap{}
-	err = k8sGardenClient.Client().Get(context.TODO(), kutil.Key(v1beta1constants.GardenNamespace, common.ControllerManagerInternalConfigMapName), internalConfigMap)
+	err = k8sGardenClient.Client().Get(ctx, kutil.Key(v1beta1constants.GardenNamespace, ControllerManagerInternalConfigMapName), internalConfigMap)
 	if apierrors.IsNotFound(err) || numberOfShoots == 0 {
 		configMap := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      common.ControllerManagerInternalConfigMapName,
+				Name:      ControllerManagerInternalConfigMapName,
 				Namespace: v1beta1constants.GardenNamespace,
 			},
 		}
 
-		_, err := controllerutil.CreateOrUpdate(context.TODO(), k8sGardenClient.Client(), configMap, func() error {
+		_, err := controllerutil.CreateOrUpdate(ctx, k8sGardenClient.Client(), configMap, func() error {
 			configMap.Data = map[string]string{
 				common.GardenRoleInternalDomain: currentDomain,
 			}
@@ -328,7 +334,7 @@ func VerifyInternalDomainSecret(k8sGardenClient kubernetes.Interface, numberOfSh
 }
 
 // BootstrapCluster bootstraps the Garden cluster and deploys various required manifests.
-func BootstrapCluster(k8sGardenClient kubernetes.Interface, gardenNamespace string, secrets map[string]*corev1.Secret) error {
+func BootstrapCluster(ctx context.Context, k8sGardenClient kubernetes.Interface, gardenNamespace string, secrets map[string]*corev1.Secret) error {
 	// Check whether the Kubernetes version of the Garden cluster is at least 1.16 (least supported K8s version of Gardener).
 	minGardenVersion := "1.16"
 	gardenVersionOK, err := version.CompareVersions(k8sGardenClient.Version(), ">=", minGardenVersion)
@@ -340,7 +346,7 @@ func BootstrapCluster(k8sGardenClient kubernetes.Interface, gardenNamespace stri
 	}
 	if secrets[common.GardenRoleGlobalMonitoring] == nil {
 		var secret *corev1.Secret
-		if secret, err = generateMonitoringSecret(k8sGardenClient, gardenNamespace); err != nil {
+		if secret, err = generateMonitoringSecret(ctx, k8sGardenClient, gardenNamespace); err != nil {
 			return err
 		}
 		secrets[common.GardenRoleGlobalMonitoring] = secret
@@ -349,7 +355,7 @@ func BootstrapCluster(k8sGardenClient kubernetes.Interface, gardenNamespace stri
 	return nil
 }
 
-func generateMonitoringSecret(k8sGardenClient kubernetes.Interface, gardenNamespace string) (*corev1.Secret, error) {
+func generateMonitoringSecret(ctx context.Context, k8sGardenClient kubernetes.Interface, gardenNamespace string) (*corev1.Secret, error) {
 	basicAuthSecret := &secretutils.BasicAuthSecretConfig{
 		Name:   "monitoring-ingress-credentials",
 		Format: secretutils.BasicAuthFormatNormal,
@@ -368,10 +374,9 @@ func generateMonitoringSecret(k8sGardenClient kubernetes.Interface, gardenNamesp
 			Namespace: gardenNamespace,
 		},
 	}
-	if _, err := controllerutil.CreateOrUpdate(context.TODO(), k8sGardenClient.Client(), secret, func() error {
+	if _, err := controllerutil.CreateOrUpdate(ctx, k8sGardenClient.Client(), secret, func() error {
 		secret.Labels = map[string]string{
-			v1beta1constants.GardenRole:           common.GardenRoleGlobalMonitoring,
-			v1beta1constants.DeprecatedGardenRole: common.GardenRoleGlobalMonitoring,
+			v1beta1constants.GardenRole: common.GardenRoleGlobalMonitoring,
 		}
 		secret.Type = corev1.SecretTypeOpaque
 		secret.Data = basicAuth.SecretData()

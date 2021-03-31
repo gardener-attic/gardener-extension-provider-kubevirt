@@ -180,6 +180,15 @@ func (vp *valuesProvider) GetControlPlaneShootChartValues(
 	return getControlPlaneShootChartValues(), nil
 }
 
+// GetControlPlaneShootCRDsChartValues returns the values for the control plane shoot CRDs chart applied by the generic actuator.
+func (vp *valuesProvider) GetControlPlaneShootCRDsChartValues(
+	_ context.Context,
+	_ *extensionsv1alpha1.ControlPlane,
+	cluster *extensionscontroller.Cluster,
+) (map[string]interface{}, error) {
+	return map[string]interface{}{}, nil
+}
+
 // GetStorageClassesChartValues returns the values for the storage classes chart applied by the generic actuator.
 func (vp *valuesProvider) GetStorageClassesChartValues(
 	_ context.Context,

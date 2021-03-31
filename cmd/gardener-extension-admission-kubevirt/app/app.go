@@ -87,12 +87,11 @@ func NewAdmissionCommand(ctx context.Context) *cobra.Command {
 			}
 
 			log.Info("Setting up webhook server")
-
 			if err := webhookOptions.Completed().AddToManager(mgr); err != nil {
 				return err
 			}
 
-			return mgr.Start(ctx.Done())
+			return mgr.Start(ctx)
 		},
 	}
 

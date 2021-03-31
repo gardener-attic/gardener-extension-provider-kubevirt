@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gardener/gardener/charts"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
@@ -37,7 +38,6 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	autoscalingv1beta2 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -46,7 +46,7 @@ import (
 // DeploySeedMonitoring will install the Helm release "seed-monitoring" in the Seed clusters. It comprises components
 // to monitor the Shoot cluster whose control plane runs in the Seed cluster.
 func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
-	if b.Shoot.GetPurpose() == gardencorev1beta1.ShootPurposeTesting {
+	if b.Shoot.Purpose == gardencorev1beta1.ShootPurposeTesting {
 		return b.DeleteSeedMonitoring(ctx)
 	}
 
@@ -63,7 +63,10 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 
 	// Fetch component-specific monitoring configuration
 	monitoringComponents := []component.MonitoringComponent{
+		b.Shoot.Components.ControlPlane.EtcdMain,
+		b.Shoot.Components.ControlPlane.EtcdEvents,
 		b.Shoot.Components.ControlPlane.KubeScheduler,
+		b.Shoot.Components.ControlPlane.KubeControllerManager,
 	}
 
 	if b.Shoot.WantsClusterAutoscaler {
@@ -76,7 +79,7 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 			return err
 		}
 		for _, config := range componentsScrapeConfigs {
-			scrapeConfigs.WriteString(fmt.Sprintf("- %s\n", indent(config, 2)))
+			scrapeConfigs.WriteString(fmt.Sprintf("- %s\n", utils.Indent(config, 2)))
 		}
 
 		componentsAlertingRules, err := component.AlertingRules()
@@ -84,7 +87,7 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 			return err
 		}
 		for filename, rule := range componentsAlertingRules {
-			alertingRules.WriteString(fmt.Sprintf("%s: |\n  %s\n", filename, indent(rule, 2)))
+			alertingRules.WriteString(fmt.Sprintf("%s: |\n  %s\n", filename, utils.Indent(rule, 2)))
 		}
 	}
 
@@ -95,6 +98,9 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 		client.MatchingLabels{v1beta1constants.LabelExtensionConfiguration: v1beta1constants.LabelMonitoring}); err != nil {
 		return err
 	}
+
+	// Need stable order before passing the dashboards to Grafana config to avoid unnecessary changes
+	kutil.ByName().Sort(existingConfigMaps)
 
 	// Read extension monitoring configurations
 	for _, cm := range existingConfigMaps.Items {
@@ -115,11 +121,6 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 	}
 
 	hosts := []map[string]interface{}{
-		// TODO: timuthy - remove in the future. Old Prometheus host is retained for migration reasons.
-		{
-			"hostName":   b.ComputePrometheusHostDeprecated(),
-			"secretName": common.PrometheusTLS,
-		},
 		{
 			"hostName":   b.ComputePrometheusHost(),
 			"secretName": prometheusTLSOverride,
@@ -137,6 +138,7 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 				"enabled": b.Shoot.KonnectivityTunnelEnabled,
 			},
 			"ingress": map[string]interface{}{
+				"class":           getIngressClass(b.Seed.Info.Spec.Ingress),
 				"basicAuthSecret": basicAuth,
 				"hosts":           hosts,
 			},
@@ -191,9 +193,9 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 
 	var (
 		prometheusImages = []string{
-			common.PrometheusImageName,
-			common.ConfigMapReloaderImageName,
-			common.BlackboxExporterImageName,
+			charts.ImageNamePrometheus,
+			charts.ImageNameConfigmapReloader,
+			charts.ImageNameBlackboxExporter,
 		}
 		podAnnotations = map[string]interface{}{
 			"checksum/secret-prometheus": b.CheckSums["prometheus"],
@@ -206,7 +208,7 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	kubeStateMetricsShoot, err := b.InjectSeedShootImages(kubeStateMetricsShootConfig, common.KubeStateMetricsImageName)
+	kubeStateMetricsShoot, err := b.InjectSeedShootImages(kubeStateMetricsShootConfig, charts.ImageNameKubeStateMetrics)
 	if err != nil {
 		return err
 	}
@@ -221,7 +223,7 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 		"kube-state-metrics-shoot": kubeStateMetricsShoot,
 	}
 
-	if err := b.K8sSeedClient.ChartApplier().Apply(ctx, filepath.Join(common.ChartPath, "seed-monitoring", "charts", "core"), b.Shoot.SeedNamespace, fmt.Sprintf("%s-monitoring", b.Shoot.SeedNamespace), kubernetes.Values(coreValues)); err != nil {
+	if err := b.K8sSeedClient.ChartApplier().Apply(ctx, filepath.Join(charts.Path, "seed-monitoring", "charts", "core"), b.Shoot.SeedNamespace, fmt.Sprintf("%s-monitoring", b.Shoot.SeedNamespace), kubernetes.Values(coreValues)); err != nil {
 		return err
 	}
 
@@ -266,11 +268,6 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 		}
 
 		hosts := []map[string]interface{}{
-			// TODO: timuthy - remove in the future. Old Prometheus host is retained for migration reasons.
-			{
-				"hostName":   b.ComputeAlertManagerHostDeprecated(),
-				"secretName": common.AlertManagerTLS,
-			},
 			{
 				"hostName":   b.ComputeAlertManagerHost(),
 				"secretName": alertManagerTLSOverride,
@@ -279,17 +276,18 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 
 		alertManagerValues, err := b.InjectSeedShootImages(map[string]interface{}{
 			"ingress": map[string]interface{}{
+				"class":           getIngressClass(b.Seed.Info.Spec.Ingress),
 				"basicAuthSecret": basicAuthUsers,
 				"hosts":           hosts,
 			},
 			"replicas":     b.Shoot.GetReplicas(1),
 			"storage":      b.Seed.GetValidVolumeSize("1Gi"),
 			"emailConfigs": emailConfigs,
-		}, common.AlertManagerImageName, common.ConfigMapReloaderImageName)
+		}, charts.ImageNameAlertmanager, charts.ImageNameConfigmapReloader)
 		if err != nil {
 			return err
 		}
-		if err := b.K8sSeedClient.ChartApplier().Apply(ctx, filepath.Join(common.ChartPath, "seed-monitoring", "charts", "alertmanager"), b.Shoot.SeedNamespace, fmt.Sprintf("%s-monitoring", b.Shoot.SeedNamespace), kubernetes.Values(alertManagerValues)); err != nil {
+		if err := b.K8sSeedClient.ChartApplier().Apply(ctx, filepath.Join(charts.Path, "seed-monitoring", "charts", "alertmanager"), b.Shoot.SeedNamespace, fmt.Sprintf("%s-monitoring", b.Shoot.SeedNamespace), kubernetes.Values(alertManagerValues)); err != nil {
 			return err
 		}
 	} else {
@@ -299,6 +297,13 @@ func (b *Botanist) DeploySeedMonitoring(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func getIngressClass(ingress *gardencorev1beta1.Ingress) string {
+	if ingress != nil && ingress.Controller.Kind == v1beta1constants.IngressKindNginx {
+		return v1beta1constants.SeedNginxIngressClass
+	}
+	return v1beta1constants.ShootNginxIngressClass
 }
 
 func (b *Botanist) getCustomAlertingConfigs(ctx context.Context, alertingSecretKeys []string) (map[string]interface{}, error) {
@@ -386,10 +391,6 @@ func (b *Botanist) deployGrafanaCharts(ctx context.Context, role, dashboards, ba
 
 	hosts := []map[string]interface{}{
 		{
-			"hostName":   b.ComputeIngressHostDeprecated(subDomain),
-			"secretName": common.GrafanaTLS,
-		},
-		{
 			"hostName":   b.ComputeIngressHost(subDomain),
 			"secretName": grafanaTLSOverride,
 		},
@@ -397,6 +398,7 @@ func (b *Botanist) deployGrafanaCharts(ctx context.Context, role, dashboards, ba
 
 	values, err := b.InjectSeedShootImages(map[string]interface{}{
 		"ingress": map[string]interface{}{
+			"class":           getIngressClass(b.Seed.Info.Spec.Ingress),
 			"basicAuthSecret": basicAuth,
 			"hosts":           hosts,
 		},
@@ -409,11 +411,14 @@ func (b *Botanist) deployGrafanaCharts(ctx context.Context, role, dashboards, ba
 		"konnectivityTunnel": map[string]interface{}{
 			"enabled": b.Shoot.KonnectivityTunnelEnabled,
 		},
-	}, common.GrafanaImageName, common.BusyboxImageName)
+		"sni": map[string]interface{}{
+			"enabled": b.APIServerSNIEnabled(),
+		},
+	}, charts.ImageNameGrafana, charts.ImageNameBusybox)
 	if err != nil {
 		return err
 	}
-	return b.K8sSeedClient.ChartApplier().Apply(ctx, filepath.Join(common.ChartPath, "seed-monitoring", "charts", "grafana"), b.Shoot.SeedNamespace, fmt.Sprintf("%s-monitoring", b.Shoot.SeedNamespace), kubernetes.Values(values))
+	return b.K8sSeedClient.ChartApplier().Apply(ctx, filepath.Join(charts.Path, "seed-monitoring", "charts", "grafana"), b.Shoot.SeedNamespace, fmt.Sprintf("%s-monitoring", b.Shoot.SeedNamespace), kubernetes.Values(values))
 }
 
 // DeleteSeedMonitoring will delete the monitoring stack from the Seed cluster to avoid phantom alerts
@@ -432,7 +437,7 @@ func (b *Botanist) DeleteSeedMonitoring(ctx context.Context) error {
 		return err
 	}
 
-	objects := []runtime.Object{
+	objects := []client.Object{
 		&corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: b.Shoot.SeedNamespace,
@@ -533,8 +538,4 @@ func (b *Botanist) DeleteSeedMonitoring(ctx context.Context) error {
 	}
 
 	return kutil.DeleteObjects(ctx, b.K8sSeedClient.Client(), objects...)
-}
-
-func indent(str string, spaces int) string {
-	return strings.ReplaceAll(str, "\n", "\n"+strings.Repeat(" ", spaces))
 }

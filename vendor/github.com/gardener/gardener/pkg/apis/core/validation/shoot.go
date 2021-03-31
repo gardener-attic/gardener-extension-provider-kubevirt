@@ -87,8 +87,28 @@ func ValidateShootUpdate(newShoot, oldShoot *core.Shoot) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	allErrs = append(allErrs, apivalidation.ValidateObjectMetaUpdate(&newShoot.ObjectMeta, &oldShoot.ObjectMeta, field.NewPath("metadata"))...)
-	allErrs = append(allErrs, ValidateShootSpecUpdate(&newShoot.Spec, &oldShoot.Spec, newShoot.DeletionTimestamp != nil, field.NewPath("spec"))...)
+	allErrs = append(allErrs, ValidateShootSpecUpdate(&newShoot.Spec, &oldShoot.Spec, newShoot.ObjectMeta, field.NewPath("spec"))...)
 	allErrs = append(allErrs, ValidateShoot(newShoot)...)
+
+	return allErrs
+}
+
+// ValidateShootTemplate validates a ShootTemplate.
+func ValidateShootTemplate(shootTemplate *core.ShootTemplate, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	allErrs = append(allErrs, metav1validation.ValidateLabels(shootTemplate.Labels, fldPath.Child("metadata", "labels"))...)
+	allErrs = append(allErrs, apivalidation.ValidateAnnotations(shootTemplate.Annotations, fldPath.Child("metadata", "annotations"))...)
+	allErrs = append(allErrs, ValidateShootSpec(shootTemplate.ObjectMeta, &shootTemplate.Spec, fldPath.Child("spec"))...)
+
+	return allErrs
+}
+
+// ValidateShootTemplateUpdate validates a ShootTemplate before an update.
+func ValidateShootTemplateUpdate(newShootTemplate, oldShootTemplate *core.ShootTemplate, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	allErrs = append(allErrs, ValidateShootSpecUpdate(&newShootTemplate.Spec, &oldShootTemplate.Spec, newShootTemplate.ObjectMeta, fldPath.Child("spec"))...)
 
 	return allErrs
 }
@@ -139,10 +159,10 @@ func ValidateShootSpec(meta metav1.ObjectMeta, spec *core.ShootSpec, fldPath *fi
 }
 
 // ValidateShootSpecUpdate validates the specification of a Shoot object.
-func ValidateShootSpecUpdate(newSpec, oldSpec *core.ShootSpec, deletionTimestampSet bool, fldPath *field.Path) field.ErrorList {
+func ValidateShootSpecUpdate(newSpec, oldSpec *core.ShootSpec, newObjectMeta metav1.ObjectMeta, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	if deletionTimestampSet && !apiequality.Semantic.DeepEqual(newSpec, oldSpec) {
+	if newObjectMeta.DeletionTimestamp != nil && !apiequality.Semantic.DeepEqual(newSpec, oldSpec) {
 		allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSpec, oldSpec, fldPath)...)
 		return allErrs
 	}
@@ -157,10 +177,11 @@ func ValidateShootSpecUpdate(newSpec, oldSpec *core.ShootSpec, deletionTimestamp
 
 	seedGotAssigned := oldSpec.SeedName == nil && newSpec.SeedName != nil
 
+	allErrs = append(allErrs, validateAddonsUpdate(newSpec.Addons, oldSpec.Addons, metav1.HasAnnotation(newObjectMeta, v1beta1constants.AnnotationShootUseAsSeed), fldPath.Child("addons"))...)
 	allErrs = append(allErrs, validateDNSUpdate(newSpec.DNS, oldSpec.DNS, seedGotAssigned, fldPath.Child("dns"))...)
 	allErrs = append(allErrs, validateKubernetesVersionUpdate(newSpec.Kubernetes.Version, oldSpec.Kubernetes.Version, fldPath.Child("kubernetes", "version"))...)
 	allErrs = append(allErrs, validateKubeProxyModeUpdate(newSpec.Kubernetes.KubeProxy, oldSpec.Kubernetes.KubeProxy, newSpec.Kubernetes.Version, fldPath.Child("kubernetes", "kubeProxy"))...)
-	allErrs = append(allErrs, validateKubeControllerManagerConfiguration(newSpec.Kubernetes.KubeControllerManager, oldSpec.Kubernetes.KubeControllerManager, fldPath.Child("kubernetes", "kubeControllerManager"))...)
+	allErrs = append(allErrs, validateKubeControllerManagerUpdate(newSpec.Kubernetes.KubeControllerManager, oldSpec.Kubernetes.KubeControllerManager, fldPath.Child("kubernetes", "kubeControllerManager"))...)
 	allErrs = append(allErrs, ValidateProviderUpdate(&newSpec.Provider, &oldSpec.Provider, fldPath.Child("provider"))...)
 
 	allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSpec.Networking.Type, oldSpec.Networking.Type, fldPath.Child("networking", "type"))...)
@@ -243,26 +264,22 @@ func ValidateShootStatusUpdate(newStatus, oldStatus core.ShootStatus) field.Erro
 func validateAddons(addons *core.Addons, kubeAPIServerConfig *core.KubeAPIServerConfig, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	if addons == nil {
-		return allErrs
-	}
-
-	if addons.NginxIngress != nil && addons.NginxIngress.Enabled {
+	if helper.NginxIngressEnabled(addons) {
 		if policy := addons.NginxIngress.ExternalTrafficPolicy; policy != nil {
 			if !availableNginxIngressExternalTrafficPolicies.Has(string(*policy)) {
-				allErrs = append(allErrs, field.NotSupported(fldPath.Child("nginx-ingress", "externalTrafficPolicy"), *policy, availableNginxIngressExternalTrafficPolicies.List()))
+				allErrs = append(allErrs, field.NotSupported(fldPath.Child("nginxIngress", "externalTrafficPolicy"), *policy, availableNginxIngressExternalTrafficPolicies.List()))
 			}
 		}
 	}
 
-	if addons.KubernetesDashboard != nil && addons.KubernetesDashboard.Enabled {
+	if helper.KubernetesDashboardEnabled(addons) {
 		if authMode := addons.KubernetesDashboard.AuthenticationMode; authMode != nil {
 			if !availableKubernetesDashboardAuthenticationModes.Has(*authMode) {
-				allErrs = append(allErrs, field.NotSupported(fldPath.Child("kubernetes-dashboard", "authenticationMode"), *authMode, availableKubernetesDashboardAuthenticationModes.List()))
+				allErrs = append(allErrs, field.NotSupported(fldPath.Child("kubernetesDashboard", "authenticationMode"), *authMode, availableKubernetesDashboardAuthenticationModes.List()))
 			}
 
 			if *authMode == core.KubernetesDashboardAuthModeBasic && !helper.ShootWantsBasicAuthentication(kubeAPIServerConfig) {
-				allErrs = append(allErrs, field.Invalid(fldPath.Child("kubernetes-dashboard", "authenticationMode"), *authMode, "cannot use basic auth mode when basic auth is not enabled in kube-apiserver configuration"))
+				allErrs = append(allErrs, field.Invalid(fldPath.Child("kubernetesDashboard", "authenticationMode"), *authMode, "cannot use basic auth mode when basic auth is not enabled in kube-apiserver configuration"))
 			}
 		}
 	}
@@ -285,22 +302,22 @@ func ValidateNodeCIDRMaskWithMaxPod(maxPod int32, nodeCIDRMaskSize int32) field.
 	return allErrs
 }
 
-func validateKubeControllerManagerConfiguration(newConfig, oldConfig *core.KubeControllerManagerConfig, fldPath *field.Path) field.ErrorList {
+func validateKubeControllerManagerUpdate(newConfig, oldConfig *core.KubeControllerManagerConfig, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	var (
-		newSize *int32
-		oldSize *int32
+		nodeCIDRMaskNew *int32
+		nodeCIDRMaskOld *int32
 	)
 
 	if newConfig != nil {
-		newSize = newConfig.NodeCIDRMaskSize
+		nodeCIDRMaskNew = newConfig.NodeCIDRMaskSize
 	}
 	if oldConfig != nil {
-		oldSize = oldConfig.NodeCIDRMaskSize
+		nodeCIDRMaskOld = oldConfig.NodeCIDRMaskSize
 	}
 
-	allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSize, oldSize, fldPath.Child("nodeCIDRMaskSize"))...)
+	allErrs = append(allErrs, apivalidation.ValidateImmutableField(nodeCIDRMaskNew, nodeCIDRMaskOld, fldPath.Child("nodeCIDRMaskSize"))...)
 
 	return allErrs
 }
@@ -318,6 +335,21 @@ func validateKubeProxyModeUpdate(newConfig, oldConfig *core.KubeProxyConfig, ver
 	if ok, _ := versionutils.CheckVersionMeetsConstraint(version, ">= 1.14.1, < 1.16"); ok {
 		allErrs = append(allErrs, apivalidation.ValidateImmutableField(newMode, oldMode, fldPath.Child("mode"))...)
 	}
+	return allErrs
+}
+
+func validateAddonsUpdate(new, old *core.Addons, shootUseAsSeed bool, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if !shootUseAsSeed {
+		return allErrs
+	}
+
+	if !helper.NginxIngressEnabled(old) && helper.NginxIngressEnabled(new) {
+		allErrs = append(allErrs, field.Forbidden(fldPath.Child("nginxIngress", "enabled"),
+			"shoot ingress addon is not supported for shooted seeds - please use managed seed ingress controller"))
+	}
+
 	return allErrs
 }
 
@@ -571,7 +603,29 @@ func validateKubernetes(kubernetes core.Kubernetes, fldPath *field.Path) field.E
 			}
 		}
 
-		allErrs = append(allErrs, ValidateWatchCacheSizes(kubeAPIServer.WatchCacheSizes, fldPath.Child("watchCacheSizes"))...)
+		allErrs = append(allErrs, ValidateWatchCacheSizes(kubeAPIServer.WatchCacheSizes, fldPath.Child("kubeAPIServer", "watchCacheSizes"))...)
+
+		if kubeAPIServer.Requests != nil {
+			const maxMaxNonMutatingRequestsInflight = 800
+			if v := kubeAPIServer.Requests.MaxNonMutatingInflight; v != nil {
+				path := fldPath.Child("kubeAPIServer", "requests", "maxNonMutatingInflight")
+
+				allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(*v), path)...)
+				if *v > maxMaxNonMutatingRequestsInflight {
+					allErrs = append(allErrs, field.Invalid(path, *v, fmt.Sprintf("cannot set higher than %d", maxMaxNonMutatingRequestsInflight)))
+				}
+			}
+
+			const maxMaxMutatingRequestsInflight = 400
+			if v := kubeAPIServer.Requests.MaxMutatingInflight; v != nil {
+				path := fldPath.Child("kubeAPIServer", "requests", "maxMutatingInflight")
+
+				allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(*v), path)...)
+				if *v > maxMaxMutatingRequestsInflight {
+					allErrs = append(allErrs, field.Invalid(path, *v, fmt.Sprintf("cannot set higher than %d", maxMaxMutatingRequestsInflight)))
+				}
+			}
+		}
 	}
 
 	allErrs = append(allErrs, validateKubeControllerManager(kubernetes.Version, kubernetes.KubeControllerManager, fldPath.Child("kubeControllerManager"))...)
@@ -681,12 +735,18 @@ func validateKubeControllerManager(kubernetesVersion string, kcm *core.KubeContr
 	if err != nil {
 		allErrs = append(allErrs, field.Invalid(fldPath, kubernetesVersion, err.Error()))
 	}
+
 	if kcm != nil {
 		if maskSize := kcm.NodeCIDRMaskSize; maskSize != nil {
 			if *maskSize < 16 || *maskSize > 28 {
 				allErrs = append(allErrs, field.Invalid(fldPath.Child("nodeCIDRMaskSize"), *maskSize, "nodeCIDRMaskSize must be between 16 and 28"))
 			}
 		}
+
+		if podEvictionTimeout := kcm.PodEvictionTimeout; podEvictionTimeout != nil && podEvictionTimeout.Duration <= 0 {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("podEvictionTimeout"), podEvictionTimeout.Duration, "podEvictionTimeout must be larger than 0"))
+		}
+
 		if hpa := kcm.HorizontalPodAutoscalerConfig; hpa != nil {
 			fldPath = fldPath.Child("horizontalPodAutoscaler")
 
@@ -732,6 +792,7 @@ func validateKubeControllerManager(kubernetesVersion string, kcm *core.KubeContr
 			}
 		}
 	}
+
 	return allErrs
 }
 
@@ -776,30 +837,21 @@ func validateMaintenance(maintenance *core.Maintenance, fldPath *field.Path) fie
 	allErrs := field.ErrorList{}
 
 	if maintenance == nil {
-		allErrs = append(allErrs, field.Required(fldPath, "maintenance information is required"))
 		return allErrs
 	}
 
-	if maintenance.AutoUpdate == nil {
-		allErrs = append(allErrs, field.Required(fldPath.Child("autoUpdate"), "auto update information is required"))
-	}
-
-	if maintenance.TimeWindow == nil {
-		allErrs = append(allErrs, field.Required(fldPath.Child("timeWindow"), "time window information is required"))
-	} else {
+	if maintenance.TimeWindow != nil {
 		maintenanceTimeWindow, err := utils.ParseMaintenanceTimeWindow(maintenance.TimeWindow.Begin, maintenance.TimeWindow.End)
 		if err != nil {
 			allErrs = append(allErrs, field.Invalid(fldPath.Child("timeWindow", "begin/end"), maintenance.TimeWindow, err.Error()))
-		}
-
-		if err == nil {
+		} else {
 			duration := maintenanceTimeWindow.Duration()
-			if duration > 6*time.Hour {
-				allErrs = append(allErrs, field.Forbidden(fldPath.Child("timeWindow"), "time window must not be greater than 6 hours"))
+			if duration > core.MaintenanceTimeWindowDurationMaximum {
+				allErrs = append(allErrs, field.Forbidden(fldPath.Child("timeWindow"), fmt.Sprintf("time window must not be greater than %s", core.MaintenanceTimeWindowDurationMaximum)))
 				return allErrs
 			}
-			if duration < 30*time.Minute {
-				allErrs = append(allErrs, field.Forbidden(fldPath.Child("timeWindow"), "time window must not be smaller than 30 minutes"))
+			if duration < core.MaintenanceTimeWindowDurationMinimum {
+				allErrs = append(allErrs, field.Forbidden(fldPath.Child("timeWindow"), fmt.Sprintf("time window must not be smaller than %s", core.MaintenanceTimeWindowDurationMinimum)))
 				return allErrs
 			}
 		}
@@ -860,9 +912,7 @@ func ValidateWorker(worker core.Worker, fldPath *field.Path) field.ErrorList {
 	if len(worker.Machine.Type) == 0 {
 		allErrs = append(allErrs, field.Required(fldPath.Child("machine", "type"), "must specify a machine type"))
 	}
-	if worker.Machine.Image == nil {
-		allErrs = append(allErrs, field.Required(fldPath.Child("machine", "image"), "must specify a machine image"))
-	} else {
+	if worker.Machine.Image != nil {
 		if len(worker.Machine.Image.Name) == 0 {
 			allErrs = append(allErrs, field.Required(fldPath.Child("machine", "image", "name"), "must specify a machine image name"))
 		}
@@ -884,7 +934,7 @@ func ValidateWorker(worker core.Worker, fldPath *field.Path) field.ErrorList {
 	allErrs = append(allErrs, ValidatePositiveIntOrPercent(worker.MaxUnavailable, fldPath.Child("maxUnavailable"))...)
 	allErrs = append(allErrs, IsNotMoreThan100Percent(worker.MaxUnavailable, fldPath.Child("maxUnavailable"))...)
 
-	if (worker.MaxUnavailable == nil && worker.MaxSurge == nil) || (getIntOrPercentValue(*worker.MaxUnavailable) == 0 && getIntOrPercentValue(*worker.MaxSurge) == 0) {
+	if (worker.MaxUnavailable == nil || getIntOrPercentValue(*worker.MaxUnavailable) == 0) && (worker.MaxSurge != nil && getIntOrPercentValue(*worker.MaxSurge) == 0) {
 		// Both MaxSurge and MaxUnavailable cannot be zero.
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("maxUnavailable"), worker.MaxUnavailable, "may not be 0 when `maxSurge` is 0"))
 	}
@@ -1055,7 +1105,7 @@ func validateKubeletConfigReserved(reserved *core.KubeletConfigReserved, fldPath
 		allErrs = append(allErrs, validateResourceQuantityValue("ephemeralStorage", *reserved.EphemeralStorage, fldPath.Child("ephemeralStorage"))...)
 	}
 	if reserved.PID != nil {
-		allErrs = append(allErrs, validateResourceQuantityValue("pid", *reserved.EphemeralStorage, fldPath.Child("pid"))...)
+		allErrs = append(allErrs, validateResourceQuantityValue("pid", *reserved.PID, fldPath.Child("pid"))...)
 	}
 	return allErrs
 }

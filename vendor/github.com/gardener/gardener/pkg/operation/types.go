@@ -16,13 +16,11 @@ package operation
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"net/http"
 
 	gardencorev1alpha1 "github.com/gardener/gardener/pkg/apis/core/v1alpha1"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	gardencorev1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
+	seedmanagementv1alpha1 "github.com/gardener/gardener/pkg/apis/seedmanagement/v1alpha1"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/client/kubernetes/clientmap"
 	"github.com/gardener/gardener/pkg/gardenlet/apis/config"
@@ -31,7 +29,6 @@ import (
 	"github.com/gardener/gardener/pkg/operation/shoot"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 
-	prometheusapi "github.com/prometheus/client_golang/api"
 	prometheusclient "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -65,7 +62,8 @@ type Operation struct {
 	Seed                      *seed.Seed
 	Shoot                     *shoot.Shoot
 	ShootState                *gardencorev1alpha1.ShootState
-	ShootedSeed               *gardencorev1beta1helper.ShootedSeed
+	ManagedSeed               *seedmanagementv1alpha1.ManagedSeed
+	ManagedSeedAPIServer      *gardencorev1beta1helper.ShootedSeedAPIServer
 	ClientMap                 clientmap.ClientMap
 	K8sGardenClient           kubernetes.Interface
 	K8sSeedClient             kubernetes.Interface
@@ -79,15 +77,4 @@ type Operation struct {
 
 	// ControlPlaneWildcardCert is a wildcard tls certificate which is issued for the seed's ingress domain.
 	ControlPlaneWildcardCert *corev1.Secret
-}
-
-type prometheusRoundTripper struct {
-	authHeader string
-	ca         *x509.CertPool
-}
-
-func (r prometheusRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Set("Authorization", r.authHeader)
-	prometheusapi.DefaultRoundTripper.(*http.Transport).TLSClientConfig = &tls.Config{RootCAs: r.ca}
-	return prometheusapi.DefaultRoundTripper.RoundTrip(req)
 }

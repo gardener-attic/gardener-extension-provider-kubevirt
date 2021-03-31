@@ -17,11 +17,13 @@ package seed
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
-	"sort"
 	"strings"
+	"time"
 
+	"github.com/gardener/gardener/charts"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	gardencorelisters "github.com/gardener/gardener/pkg/client/core/listers/core/v1beta1"
@@ -29,40 +31,51 @@ import (
 	"github.com/gardener/gardener/pkg/features"
 	"github.com/gardener/gardener/pkg/gardenlet/apis/config"
 	gardenletfeatures "github.com/gardener/gardener/pkg/gardenlet/features"
+	"github.com/gardener/gardener/pkg/logger"
 	"github.com/gardener/gardener/pkg/operation/botanist/component"
-	"github.com/gardener/gardener/pkg/operation/botanist/controlplane/clusterautoscaler"
-	"github.com/gardener/gardener/pkg/operation/botanist/controlplane/kubescheduler"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/clusterautoscaler"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/etcd"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/extensions/dns"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/gardenerkubescheduler"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/istio"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/kubecontrollermanager"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/kubescheduler"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/metricsserver"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/resourcemanager"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/seedadmissioncontroller"
+	"github.com/gardener/gardener/pkg/operation/botanist/controlplane"
 	"github.com/gardener/gardener/pkg/operation/common"
-	"github.com/gardener/gardener/pkg/operation/seed/istio"
 	"github.com/gardener/gardener/pkg/utils"
-	"github.com/gardener/gardener/pkg/utils/chart"
+	"github.com/gardener/gardener/pkg/utils/flow"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	secretsutils "github.com/gardener/gardener/pkg/utils/secrets"
 	versionutils "github.com/gardener/gardener/pkg/utils/version"
-	autoscalingv1beta2 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta2"
 
-	"github.com/gardener/gardener/pkg/version"
-
-	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	"github.com/Masterminds/semver"
+	dnsv1alpha1 "github.com/gardener/external-dns-management/pkg/apis/dns/v1alpha1"
+	resourcesv1alpha1 "github.com/gardener/gardener-resource-manager/pkg/apis/resources/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
+	policyv1beta1 "k8s.io/api/policy/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
+	autoscalingv1beta2 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta2"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/component-base/version"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
-
-type byName []corev1.ConfigMap
-
-func (a byName) Len() int           { return len(a) }
-func (a byName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a byName) Less(i, j int) bool { return a[i].ObjectMeta.Name < a[j].ObjectMeta.Name }
 
 // NewBuilder returns a new Builder.
 func NewBuilder() *Builder {
@@ -148,7 +161,7 @@ func generateWantedSecrets(seed *Seed, certificateAuthorities map[string]*secret
 			Name: common.GrafanaTLS,
 
 			CommonName:   "grafana",
-			Organization: []string{"garden.sapcloud.io:monitoring:ingress"},
+			Organization: []string{"gardener.cloud:monitoring:ingress"},
 			DNSNames:     []string{seed.GetIngressFQDN(grafanaPrefix)},
 			IPAddresses:  nil,
 
@@ -160,7 +173,7 @@ func generateWantedSecrets(seed *Seed, certificateAuthorities map[string]*secret
 			Name: prometheusTLS,
 
 			CommonName:   "prometheus",
-			Organization: []string{"garden.sapcloud.io:monitoring:ingress"},
+			Organization: []string{"gardener.cloud:monitoring:ingress"},
 			DNSNames:     []string{seed.GetIngressFQDN(prometheusPrefix)},
 			IPAddresses:  nil,
 
@@ -175,8 +188,8 @@ func generateWantedSecrets(seed *Seed, certificateAuthorities map[string]*secret
 
 // deployCertificates deploys CA and TLS certificates inside the garden namespace
 // It takes a map[string]*corev1.Secret object which contains secrets that have already been deployed inside that namespace to avoid duplication errors.
-func deployCertificates(seed *Seed, k8sSeedClient kubernetes.Interface, existingSecretsMap map[string]*corev1.Secret) (map[string]*corev1.Secret, error) {
-	_, certificateAuthorities, err := secretsutils.GenerateCertificateAuthorities(k8sSeedClient, existingSecretsMap, wantedCertificateAuthorities, v1beta1constants.GardenNamespace)
+func deployCertificates(ctx context.Context, seed *Seed, k8sSeedClient kubernetes.Interface, existingSecretsMap map[string]*corev1.Secret) (map[string]*corev1.Secret, error) {
+	_, certificateAuthorities, err := secretsutils.GenerateCertificateAuthorities(ctx, k8sSeedClient, existingSecretsMap, wantedCertificateAuthorities, v1beta1constants.GardenNamespace)
 	if err != nil {
 		return nil, err
 	}
@@ -195,14 +208,14 @@ func deployCertificates(seed *Seed, k8sSeedClient kubernetes.Interface, existing
 	for name, secret := range existingSecretsMap {
 		_, ok := secret.Labels[renewedLabel]
 		if browserCerts.Has(name) && !ok {
-			if err := k8sSeedClient.Client().Delete(context.TODO(), secret); client.IgnoreNotFound(err) != nil {
+			if err := k8sSeedClient.Client().Delete(ctx, secret); client.IgnoreNotFound(err) != nil {
 				return nil, err
 			}
 			delete(existingSecretsMap, name)
 		}
 	}
 
-	secrets, err := secretsutils.GenerateClusterSecrets(context.TODO(), k8sSeedClient, existingSecretsMap, wantedSecretsList, v1beta1constants.GardenNamespace)
+	secrets, err := secretsutils.GenerateClusterSecrets(ctx, k8sSeedClient, existingSecretsMap, wantedSecretsList, v1beta1constants.GardenNamespace)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +230,7 @@ func deployCertificates(seed *Seed, k8sSeedClient kubernetes.Interface, existing
 			}
 			secret.Labels[renewedLabel] = "true"
 
-			if err := k8sSeedClient.Client().Update(context.TODO(), secret); err != nil {
+			if err := k8sSeedClient.Client().Update(ctx, secret); err != nil {
 				return nil, err
 			}
 		}
@@ -227,14 +240,31 @@ func deployCertificates(seed *Seed, k8sSeedClient kubernetes.Interface, existing
 }
 
 // BootstrapCluster bootstraps a Seed cluster and deploys various required manifests.
-func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubernetes.Interface, seed *Seed, secrets map[string]*corev1.Secret, imageVector imagevector.ImageVector, componentImageVectors imagevector.ComponentImageVectors, loggingConfig *config.Logging) error {
-	const chartName = "seed-bootstrap"
+func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubernetes.Interface, seed *Seed, secrets map[string]*corev1.Secret, imageVector imagevector.ImageVector, componentImageVectors imagevector.ComponentImageVectors, conf *config.GardenletConfiguration) error {
+	vpaGK := schema.GroupKind{Group: "autoscaling.k8s.io", Kind: "VerticalPodAutoscaler"}
 
-	gardenNamespace := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: v1beta1constants.GardenNamespace,
-		},
+	vpaEnabled := seed.Info.Spec.Settings == nil || seed.Info.Spec.Settings.VerticalPodAutoscaler == nil || seed.Info.Spec.Settings.VerticalPodAutoscaler.Enabled
+	if !vpaEnabled {
+		// VPA is a prerequisite. If it's not enabled via the seed spec it must be provided through some other mechanism.
+		if _, err := k8sSeedClient.Client().RESTMapper().RESTMapping(vpaGK); err != nil {
+			return fmt.Errorf("VPA is required for seed cluster: %s", err)
+		}
+
+		if err := common.DeleteVpa(ctx, k8sSeedClient.Client(), v1beta1constants.GardenNamespace, false); client.IgnoreNotFound(err) != nil {
+			return err
+		}
 	}
+
+	const chartName = "seed-bootstrap"
+	var (
+		loggingConfig   = conf.Logging
+		gardenNamespace = &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: v1beta1constants.GardenNamespace,
+			},
+		}
+	)
+
 	if err := k8sSeedClient.Client().Create(ctx, gardenNamespace); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
@@ -274,24 +304,26 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 
 	images, err := imagevector.FindImages(imageVector,
 		[]string{
-			common.AlertManagerImageName,
-			common.AlpineImageName,
-			common.ConfigMapReloaderImageName,
-			common.LokiImageName,
-			common.FluentBitImageName,
-			common.FluentBitPluginInstaller,
-			common.GardenerResourceManagerImageName,
-			common.GrafanaImageName,
-			common.PauseContainerImageName,
-			common.PrometheusImageName,
-			common.VpaAdmissionControllerImageName,
-			common.VpaExporterImageName,
-			common.VpaRecommenderImageName,
-			common.VpaUpdaterImageName,
-			common.HvpaControllerImageName,
-			common.DependencyWatchdogImageName,
-			common.KubeStateMetricsImageName,
-			common.EtcdDruidImageName,
+			charts.ImageNameAlertmanager,
+			charts.ImageNameAlpine,
+			charts.ImageNameConfigmapReloader,
+			charts.ImageNameLoki,
+			charts.ImageNameLokiCurator,
+			charts.ImageNameFluentBit,
+			charts.ImageNameFluentBitPluginInstaller,
+			charts.ImageNameGardenerResourceManager,
+			charts.ImageNameGrafana,
+			charts.ImageNamePauseContainer,
+			charts.ImageNamePrometheus,
+			charts.ImageNameVpaAdmissionController,
+			charts.ImageNameVpaExporter,
+			charts.ImageNameVpaRecommender,
+			charts.ImageNameVpaUpdater,
+			charts.ImageNameHvpaController,
+			charts.ImageNameDependencyWatchdog,
+			charts.ImageNameKubeStateMetrics,
+			charts.ImageNameNginxIngressControllerSeed,
+			charts.ImageNameIngressDefaultBackend,
 		},
 		imagevector.RuntimeVersion(k8sSeedClient.Version()),
 		imagevector.TargetVersion(k8sSeedClient.Version()),
@@ -300,29 +332,45 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 		return err
 	}
 
-	// Special handling for gardener-seed-admission-controller because it's a component whose version is controlled by
-	// this project/repository
+	// HVPA feature gate
+	hvpaEnabled := gardenletfeatures.FeatureGate.Enabled(features.HVPA)
+	if !hvpaEnabled {
+		if err := common.DeleteHvpa(ctx, k8sSeedClient, v1beta1constants.GardenNamespace); client.IgnoreNotFound(err) != nil {
+			return err
+		}
+	}
 
-	gardenerSeedAdmissionControllerImage, err := imageVector.FindImage(common.GardenerSeedAdmissionControllerImageName)
-	if err != nil {
-		return err
+	// Fetch component-specific dependency-watchdog configuration
+	var dependencyWatchdogConfigurations []string
+	for _, componentFn := range []component.DependencyWatchdogConfiguration{
+		func() (string, error) { return etcd.DependencyWatchdogConfiguration(v1beta1constants.ETCDRoleMain) },
+	} {
+		dwdConfig, err := componentFn()
+		if err != nil {
+			return err
+		}
+		dependencyWatchdogConfigurations = append(dependencyWatchdogConfigurations, dwdConfig)
 	}
+
+	// Fetch component-specific central monitoring configuration
 	var (
-		repository = gardenerSeedAdmissionControllerImage.String()
-		tag        = version.Get().GitVersion
+		centralScrapeConfigs                            = strings.Builder{}
+		centralCAdvisorScrapeConfigMetricRelabelConfigs = strings.Builder{}
 	)
-	if gardenerSeedAdmissionControllerImage.Tag != nil {
-		repository = gardenerSeedAdmissionControllerImage.Repository
-		tag = *gardenerSeedAdmissionControllerImage.Tag
-	}
-	images[common.GardenerSeedAdmissionControllerImageName] = &imagevector.Image{
-		Repository: repository,
-		Tag:        &tag,
-	}
-	// TODO: Remove in future release
-	// Delete the mutatingwebhookconfigoration
-	if err := deleteMutatingWebHookConfiguration(ctx, k8sSeedClient.Client()); err != nil {
-		return err
+
+	for _, componentFn := range []component.CentralMonitoringConfiguration{} {
+		centralMonitoringConfig, err := componentFn()
+		if err != nil {
+			return err
+		}
+
+		for _, config := range centralMonitoringConfig.ScrapeConfigs {
+			centralScrapeConfigs.WriteString(fmt.Sprintf("- %s\n", utils.Indent(config, 2)))
+		}
+
+		for _, config := range centralMonitoringConfig.CAdvisorScrapeConfigMetricRelabelConfigs {
+			centralCAdvisorScrapeConfigMetricRelabelConfigs.WriteString(fmt.Sprintf("- %s\n", utils.Indent(config, 2)))
+		}
 	}
 
 	// Logging feature gate
@@ -332,21 +380,77 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 		filters                           = strings.Builder{}
 		parsers                           = strings.Builder{}
 		fluentBitConfigurationsOverwrites = map[string]interface{}{}
+		lokiValues                        = map[string]interface{}{}
 	)
 
-	if loggingEnabled {
-		// TODO: remove in a future release
-		// Clean up the stale loki-vpa.
-		lokiVpa := &autoscalingv1beta2.VerticalPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: "loki-vpa", Namespace: v1beta1constants.GardenNamespace}}
-		if err := k8sSeedClient.Client().Delete(ctx, lokiVpa); client.IgnoreNotFound(err) != nil {
-			return err
+	lokiValues["enabled"] = loggingEnabled
 
+	if loggingEnabled {
+		lokiValues["authEnabled"] = false
+
+		lokiVpa := &autoscalingv1beta2.VerticalPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: "loki-vpa", Namespace: v1beta1constants.GardenNamespace}}
+		if err := k8sSeedClient.Client().Delete(ctx, lokiVpa); client.IgnoreNotFound(err) != nil && !meta.IsNoMatchError(err) {
+			return err
 		}
-		componentsFunctions := []component.LoggingConfiguration{
-			clusterautoscaler.LoggingConfiguration,
-			kubescheduler.LoggingConfiguration,
+
+		if hvpaEnabled {
+			shootInfo := &corev1.ConfigMap{}
+			maintenanceBegin := "220000-0000"
+			maintenanceEnd := "230000-0000"
+			if err := k8sSeedClient.Client().Get(ctx, kutil.Key(metav1.NamespaceSystem, "shoot-info"), shootInfo); err != nil {
+				if !apierrors.IsNotFound(err) {
+					return err
+				}
+			} else {
+				shootMaintenanceBegin, err := utils.ParseMaintenanceTime(shootInfo.Data["maintenanceBegin"])
+				if err != nil {
+					return err
+				}
+				maintenanceBegin = shootMaintenanceBegin.Add(1, 0, 0).Formatted()
+
+				shootMaintenanceEnd, err := utils.ParseMaintenanceTime(shootInfo.Data["maintenanceEnd"])
+				if err != nil {
+					return err
+				}
+				maintenanceEnd = shootMaintenanceEnd.Add(1, 0, 0).Formatted()
+			}
+
+			lokiValues["hvpa"] = map[string]interface{}{
+				"enabled": true,
+				"maintenanceTimeWindow": map[string]interface{}{
+					"begin": maintenanceBegin,
+					"end":   maintenanceEnd,
+				},
+			}
+
+			currentResources, err := common.GetContainerResourcesInStatefulSet(ctx, k8sSeedClient.Client(), kutil.Key(v1beta1constants.GardenNamespace, "loki"))
+			if err != nil {
+				return err
+			}
+			if len(currentResources) != 0 && currentResources["loki"] != nil {
+				lokiValues["resources"] = map[string]interface{}{
+					"loki": currentResources["loki"],
+				}
+			}
 		}
-		userAllowedComponents := []string{v1beta1constants.DeploymentNameKubeAPIServer, v1beta1constants.DeploymentNameKubeControllerManager}
+
+		componentsFunctions := []component.CentralLoggingConfiguration{
+			// seed system components
+			seedadmissioncontroller.CentralLoggingConfiguration,
+			resourcemanager.CentralLoggingConfiguration,
+			// shoot control plane components
+			etcd.CentralLoggingConfiguration,
+			clusterautoscaler.CentralLoggingConfiguration,
+			kubescheduler.CentralLoggingConfiguration,
+			kubecontrollermanager.CentralLoggingConfiguration,
+			// shoot system components
+			metricsserver.CentralLoggingConfiguration,
+		}
+		userAllowedComponents := []string{
+			v1beta1constants.DeploymentNameKubeAPIServer,
+			v1beta1constants.DeploymentNameVPAExporter, v1beta1constants.DeploymentNameVPARecommender,
+			v1beta1constants.DeploymentNameVPAAdmissionController,
+		}
 
 		// Fetch component specific logging configurations
 		for _, componentFn := range componentsFunctions {
@@ -366,7 +470,7 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 		loggingRewriteTagFilter := `[FILTER]
     Name          rewrite_tag
     Match         kubernetes.*
-    Rule          $kubernetes['pod_name'] ^(` + strings.Join(userAllowedComponents, "-?.+|") + `-?.+)$ ` + userExposedComponentTagPrefix + `.$TAG true
+    Rule          $tag ^kubernetes\.var\.log\.containers\.(` + strings.Join(userAllowedComponents, "-.+?|") + `-.+?)_ ` + userExposedComponentTagPrefix + `.$TAG true
     Emitter_Name  re_emitted
 `
 		filters.WriteString(fmt.Sprintln(loggingRewriteTagFilter))
@@ -378,7 +482,9 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 			client.MatchingLabels{v1beta1constants.LabelExtensionConfiguration: v1beta1constants.LabelLogging}); err != nil {
 			return err
 		}
-		sort.Sort(byName(existingConfigMaps.Items))
+
+		// Need stable order before passing the dashboards to Grafana config to avoid unnecessary changes
+		kutil.ByName().Sort(existingConfigMaps)
 
 		// Read all filters and parsers coming from the extension provider configurations
 		for _, cm := range existingConfigMaps.Items {
@@ -400,22 +506,7 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 			}
 		}
 	} else {
-		if err := common.DeleteLoggingStack(ctx, k8sSeedClient.Client(), v1beta1constants.GardenNamespace); client.IgnoreNotFound(err) != nil {
-			return err
-		}
-	}
-
-	// HVPA feature gate
-	hvpaEnabled := gardenletfeatures.FeatureGate.Enabled(features.HVPA)
-	if !hvpaEnabled {
-		if err := common.DeleteHvpa(ctx, k8sSeedClient, v1beta1constants.GardenNamespace); client.IgnoreNotFound(err) != nil {
-			return err
-		}
-	}
-
-	vpaEnabled := seed.Info.Spec.Settings == nil || seed.Info.Spec.Settings.VerticalPodAutoscaler == nil || seed.Info.Spec.Settings.VerticalPodAutoscaler.Enabled
-	if !vpaEnabled {
-		if err := common.DeleteVpa(ctx, k8sSeedClient.Client(), v1beta1constants.GardenNamespace, false); client.IgnoreNotFound(err) != nil {
+		if err := common.DeleteSeedLoggingStack(ctx, k8sSeedClient.Client()); err != nil {
 			return err
 		}
 	}
@@ -430,7 +521,7 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 		existingSecretsMap[secret.ObjectMeta.Name] = &secretObj
 	}
 
-	deployedSecretsMap, err := deployCertificates(seed, k8sSeedClient, existingSecretsMap)
+	deployedSecretsMap, err := deployCertificates(ctx, seed, k8sSeedClient, existingSecretsMap)
 	if err != nil {
 		return err
 	}
@@ -477,11 +568,6 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 		}
 	}
 
-	nodes := &corev1.NodeList{}
-	if err = k8sSeedClient.Client().List(ctx, nodes); err != nil {
-		return err
-	}
-
 	chartApplier := k8sSeedClient.ChartApplier()
 
 	var (
@@ -490,9 +576,7 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 			// Apply status from old Object to retain status information
 			new.Object["status"] = old.Object["status"]
 		}
-		vpaGK                 = schema.GroupKind{Group: "autoscaling.k8s.io", Kind: "VerticalPodAutoscaler"}
 		hvpaGK                = schema.GroupKind{Group: "autoscaling.k8s.io", Kind: "Hvpa"}
-		druidGK               = schema.GroupKind{Group: "druid.gardener.cloud", Kind: "Etcd"}
 		issuerGK              = schema.GroupKind{Group: "certmanager.k8s.io", Kind: "ClusterIssuer"}
 		grafanaHost           = seed.GetIngressFQDN(grafanaPrefix)
 		prometheusHost        = seed.GetIngressFQDN(prometheusPrefix)
@@ -506,7 +590,6 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 	applierOptions[vpaGK] = retainStatusInformation
 	applierOptions[hvpaGK] = retainStatusInformation
 	applierOptions[issuerGK] = retainStatusInformation
-	applierOptions[druidGK] = retainStatusInformation
 
 	networks := []string{
 		seed.Info.Spec.Networks.Pods,
@@ -536,24 +619,29 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 		prometheusTLSOverride = wildcardCert.GetName()
 	}
 
-	imageVectorOverwrites := map[string]interface{}{}
+	imageVectorOverwrites := make(map[string]string, len(componentImageVectors))
 	for name, data := range componentImageVectors {
 		imageVectorOverwrites[name] = data
 	}
 
+	anySNI, err := controlplane.AnyDeployedSNI(ctx, k8sSeedClient.Client())
+	if err != nil {
+		return err
+	}
+
 	if gardenletfeatures.FeatureGate.Enabled(features.ManagedIstio) {
-		istiodImage, err := imageVector.FindImage(common.IstioIstiodImageName)
+		istiodImage, err := imageVector.FindImage(charts.ImageNameIstioIstiod)
 		if err != nil {
 			return err
 		}
 
-		igwImage, err := imageVector.FindImage(common.IstioProxyImageName)
+		igwImage, err := imageVector.FindImage(charts.ImageNameIstioProxy)
 		if err != nil {
 			return err
 		}
 
 		chartApplier := k8sSeedClient.ChartApplier()
-		istioCRDs := istio.NewIstioCRD(chartApplier, common.ChartPath, k8sSeedClient.Client())
+		istioCRDs := istio.NewIstioCRD(chartApplier, charts.Path, k8sSeedClient.Client())
 		istiod := istio.NewIstiod(
 			&istio.IstiodValues{
 				TrustDomain: "cluster.local",
@@ -561,7 +649,7 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 			},
 			common.IstioNamespace,
 			chartApplier,
-			common.ChartPath,
+			charts.Path,
 			k8sSeedClient.Client(),
 		)
 
@@ -570,26 +658,28 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 			Image:           igwImage.String(),
 			IstiodNamespace: common.IstioNamespace,
 			Annotations:     seed.LoadBalancerServiceAnnotations,
+			Ports:           []corev1.ServicePort{},
 		}
 
-		if gardenletfeatures.FeatureGate.Enabled(features.APIServerSNI) {
-			ports := []corev1.ServicePort{
-				{Name: "proxy", Port: 8443, TargetPort: intstr.FromInt(8443)},
-				{Name: "tcp", Port: 443, TargetPort: intstr.FromInt(9443)},
-			}
-
-			if gardenletfeatures.FeatureGate.Enabled(features.KonnectivityTunnel) {
-				ports = append(ports, corev1.ServicePort{Name: "tls-tunnel", Port: 8132, TargetPort: intstr.FromInt(8132)})
-			}
-
-			igwConfig.Ports = ports
+		// even if SNI is being disabled, the existing ports must stay the same
+		// until all APIServer SNI resources are removed.
+		if gardenletfeatures.FeatureGate.Enabled(features.APIServerSNI) || anySNI {
+			igwConfig.Ports = append(
+				igwConfig.Ports,
+				corev1.ServicePort{Name: "proxy", Port: 8443, TargetPort: intstr.FromInt(8443)},
+				corev1.ServicePort{Name: "tcp", Port: 443, TargetPort: intstr.FromInt(9443)},
+				// The KonnectivityTunnel feature can be enabled with annotation
+				// and it requires have this port open, even if the feature is disabled in
+				// gardenlet.
+				corev1.ServicePort{Name: "tls-tunnel", Port: 8132, TargetPort: intstr.FromInt(8132)},
+			)
 		}
 
 		igw := istio.NewIngressGateway(
 			igwConfig,
-			common.IstioIngressGatewayNamespace,
+			*conf.SNI.Ingress.Namespace,
 			chartApplier,
-			common.ChartPath,
+			charts.Path,
 			k8sSeedClient.Client(),
 		)
 
@@ -598,7 +688,7 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 		}
 	}
 
-	proxy := istio.NewProxyProtocolGateway(common.IstioIngressGatewayNamespace, chartApplier, common.ChartPath)
+	proxy := istio.NewProxyProtocolGateway(*conf.SNI.Ingress.Namespace, chartApplier, charts.Path)
 
 	if gardenletfeatures.FeatureGate.Enabled(features.APIServerSNI) {
 		if err := proxy.Deploy(ctx); err != nil {
@@ -616,24 +706,45 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 			return err
 		}
 
+		seedCopy := seed.Info.DeepCopy()
 		seed.Info.Status.ClusterIdentity = &seedClusterIdentity
-		if err := k8sGardenClient.Client().Status().Update(ctx, seed.Info); err != nil {
+
+		if err := k8sGardenClient.Client().Status().Patch(ctx, seed.Info, client.MergeFrom(seedCopy)); err != nil {
 			return err
 		}
 	}
 
+	// .spec.selector of a Deployment is immutable. If Deployment's .spec.selector contains
+	// the deprecated role label key, we delete it and let it to be re-created below with the chart apply.
+	// TODO: remove in a future version
+	deploymentKeys := []client.ObjectKey{
+		kutil.Key(v1beta1constants.GardenNamespace, "vpa-exporter"),
+	}
+	if vpaEnabled {
+		deploymentKeys = append(deploymentKeys,
+			kutil.Key(v1beta1constants.GardenNamespace, "vpa-updater"),
+			kutil.Key(v1beta1constants.GardenNamespace, "vpa-recommender"),
+			kutil.Key(v1beta1constants.GardenNamespace, "vpa-admission-controller"),
+		)
+	}
+	if err := common.DeleteDeploymentsHavingDeprecatedRoleLabelKey(ctx, k8sSeedClient.Client(), deploymentKeys); err != nil {
+		return err
+	}
+
 	values := kubernetes.Values(map[string]interface{}{
-		"cloudProvider": seed.Info.Spec.Provider.Type,
+		"priorityClassName": v1beta1constants.PriorityClassNameShootControlPlane,
 		"global": map[string]interface{}{
-			"images":                chart.ImageMapToValues(images),
-			"imageVectorOverwrites": imageVectorOverwrites,
+			"ingressClass": getIngressClass(managedIngress(seed)),
+			"images":       imagevector.ImageMapToValues(images),
 		},
 		"reserveExcessCapacity": seed.Info.Spec.Settings.ExcessCapacityReservation.Enabled,
 		"replicas": map[string]interface{}{
 			"reserve-excess-capacity": DesiredExcessCapacity(),
 		},
 		"prometheus": map[string]interface{}{
-			"storage": seed.GetValidVolumeSize("10Gi"),
+			"storage":                 seed.GetValidVolumeSize("10Gi"),
+			"additionalScrapeConfigs": centralScrapeConfigs.String(),
+			"additionalCAdvisorScrapeConfigMetricRelabelConfigs": centralCAdvisorScrapeConfigMetricRelabelConfigs.String(),
 		},
 		"aggregatePrometheus": map[string]interface{}{
 			"storage":    seed.GetValidVolumeSize("20Gi"),
@@ -652,13 +763,7 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 			"fluentBitConfigurationsOverwrites": fluentBitConfigurationsOverwrites,
 			"exposedComponentsTagPrefix":        userExposedComponentTagPrefix,
 		},
-		"loki": map[string]interface{}{
-			"enabled":     loggingEnabled,
-			"authEnabled": false,
-			"hvpa": map[string]interface{}{
-				"enabled": hvpaEnabled,
-			},
-		},
+		"loki":         lokiValues,
 		"alertmanager": alertManagerConfig,
 		"vpa": map[string]interface{}{
 			"enabled": vpaEnabled,
@@ -676,6 +781,10 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 				},
 			},
 		},
+		"dependency-watchdog": map[string]interface{}{
+			"config": strings.Join(dependencyWatchdogConfigurations, "\n"),
+		},
+		"nginx-ingress": computeNginxIngress(seed),
 		"hvpa": map[string]interface{}{
 			"enabled": hvpaEnabled,
 		},
@@ -685,10 +794,7 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 		"global-network-policies": map[string]interface{}{
 			"denyAll":         false,
 			"privateNetworks": privateNetworks,
-			"sniEnabled":      gardenletfeatures.FeatureGate.Enabled(features.APIServerSNI),
-		},
-		"gardenerResourceManager": map[string]interface{}{
-			"resourceClass": v1beta1constants.SeedResourceManagerClass,
+			"sniEnabled":      gardenletfeatures.FeatureGate.Enabled(features.APIServerSNI) || anySNI,
 		},
 		"ingress": map[string]interface{}{
 			"basicAuthSecret": monitoringBasicAuth,
@@ -696,32 +802,175 @@ func BootstrapCluster(ctx context.Context, k8sGardenClient, k8sSeedClient kubern
 		"cluster-identity": map[string]interface{}{"clusterIdentity": &seed.Info.Status.ClusterIdentity},
 	})
 
-	if err := chartApplier.Apply(ctx, filepath.Join(common.ChartPath, chartName), v1beta1constants.GardenNamespace, chartName, values, applierOptions); err != nil {
+	if err := chartApplier.Apply(ctx, filepath.Join(charts.Path, chartName), v1beta1constants.GardenNamespace, chartName, values, applierOptions); err != nil {
+		return err
+	}
+
+	if err := handleDNSProvider(ctx, k8sGardenClient.Client(), k8sSeedClient.Client(), seed.Info.Spec.DNS); err != nil {
+		return err
+	}
+
+	// managed nginx-ingress handling
+	if err := handleIngressDNSEntry(ctx, k8sSeedClient, chartApplier, seed); err != nil {
+		return err
+	}
+
+	var ingressClass string
+	if managedIngress(seed) {
+		ingressClass = v1beta1constants.SeedNginxIngressClass
+	} else {
+		ingressClass = v1beta1constants.ShootNginxIngressClass
+		if err := deleteIngressController(ctx, k8sSeedClient.Client()); err != nil {
+			return err
+		}
+	}
+	if err := migrateIngressClassForShootIngresses(ctx, k8sGardenClient.Client(), k8sSeedClient.Client(), seed, ingressClass); err != nil {
+		return err
+	}
+
+	if err := deployGardenerResourceManager(ctx, k8sSeedClient, v1beta1constants.GardenNamespace, imageVector); err != nil {
 		return err
 	}
 
 	// Deploy component specific resources
-	for _, componentFn := range []component.BootstrapSeed{
-		clusterautoscaler.BootstrapSeed,
-	} {
-		if err := componentFn(ctx, k8sSeedClient.Client(), v1beta1constants.GardenNamespace, k8sSeedClient.Version()); err != nil {
-			return err
-		}
+	bootstrapComponents, err := bootstrapComponents(k8sSeedClient, v1beta1constants.GardenNamespace, imageVector, imageVectorOverwrites)
+	if err != nil {
+		return err
 	}
 
-	// TODO: remove in a future release
-	// Clean up the stale vpa-webhook-config MutatingWebhookConfiguration.
-	// We can delete vpa-webhook-config as the new vpa-webhook-config-seed will be created with the apply of the seed-boostrap chart.
-	if vpaEnabled {
-		webhook := &admissionregistrationv1beta1.MutatingWebhookConfiguration{
-			ObjectMeta: metav1.ObjectMeta{Name: "vpa-webhook-config"},
-		}
-		if err := k8sSeedClient.Client().Delete(ctx, webhook); client.IgnoreNotFound(err) != nil {
-			return err
-		}
+	var bootstrapFunctions []flow.TaskFn
+	for _, componentFn := range bootstrapComponents {
+		fn := componentFn
+		bootstrapFunctions = append(bootstrapFunctions, func(ctx context.Context) error {
+			return component.OpWaiter(fn).Deploy(ctx)
+		})
 	}
 
-	return nil
+	return flow.Parallel(bootstrapFunctions...)(ctx)
+}
+
+// DebootstrapCluster deletes certain resources from the seed cluster.
+func DebootstrapCluster(ctx context.Context, k8sSeedClient kubernetes.Interface) error {
+	bootstrapComponents, err := bootstrapComponents(k8sSeedClient, v1beta1constants.GardenNamespace, nil, nil)
+	if err != nil {
+		return err
+	}
+
+	// Delete component specific resources
+	var debootstrapFunctions []flow.TaskFn
+	for _, componentFn := range bootstrapComponents {
+		fn := componentFn
+		debootstrapFunctions = append(debootstrapFunctions, func(ctx context.Context) error {
+			return component.OpDestroyAndWait(fn).Destroy(ctx)
+		})
+	}
+
+	if err = flow.Parallel(debootstrapFunctions...)(ctx); err != nil {
+		return err
+	}
+
+	return destroyGardenerResourceManager(ctx, k8sSeedClient)
+}
+
+func destroyGardenerResourceManager(ctx context.Context, c kubernetes.Interface) error {
+	managedResources := &resourcesv1alpha1.ManagedResourceList{}
+	if err := c.Client().List(ctx, managedResources, client.InNamespace(v1beta1constants.GardenNamespace)); err != nil {
+		return err
+	}
+	if len(managedResources.Items) == 0 {
+		rm := resourcemanager.New(c.Client(), v1beta1constants.GardenNamespace, "", 0, resourcemanager.Values{})
+		return rm.Destroy(ctx)
+	}
+	return errors.New("cannot delete gardener-resource-manager there are managed resources in the garden namespace left")
+}
+
+func deployGardenerResourceManager(ctx context.Context, c kubernetes.Interface, namespace string, imageVector imagevector.ImageVector) error {
+	image, err := imageVector.FindImage(charts.ImageNameGardenerResourceManager, imagevector.RuntimeVersion(c.Version()), imagevector.TargetVersion(c.Version()))
+	if err != nil {
+		return err
+	}
+	cfg := resourcemanager.Values{
+		ConcurrentSyncs:  pointer.Int32Ptr(20),
+		HealthSyncPeriod: utils.DurationPtr(time.Minute),
+		ResourceClass:    pointer.StringPtr(v1beta1constants.SeedResourceManagerClass),
+
+		SyncPeriod: utils.DurationPtr(time.Hour),
+	}
+	rm := resourcemanager.New(c.Client(), namespace, image.String(), 1, cfg)
+	return rm.Deploy(ctx)
+}
+
+func bootstrapComponents(c kubernetes.Interface, namespace string, imageVector imagevector.ImageVector, imageVectorOverwrites map[string]string) ([]component.DeployWaiter, error) {
+	var components []component.DeployWaiter
+
+	kubernetesVersion, err := semver.NewVersion(c.Version())
+	if err != nil {
+		return nil, err
+	}
+
+	// cluster-autoscaler
+	components = append(components, clusterautoscaler.NewBootstrapper(c.Client(), namespace))
+
+	// etcd
+	var (
+		etcdImage                string
+		etcdImageVectorOverwrite *string
+	)
+	if imageVector != nil {
+		image, err := imageVector.FindImage(charts.ImageNameEtcdDruid, imagevector.RuntimeVersion(c.Version()), imagevector.TargetVersion(c.Version()))
+		if err != nil {
+			return nil, err
+		}
+		etcdImage = image.String()
+	}
+	if imageVectorOverwrites != nil {
+		if val, ok := imageVectorOverwrites[etcd.Druid]; ok {
+			etcdImageVectorOverwrite = &val
+		}
+	}
+	components = append(components, etcd.NewBootstrapper(c.Client(), namespace, etcdImage, kubernetesVersion, etcdImageVectorOverwrite))
+
+	// gardener-seed-admission-controller
+	var gsacImage imagevector.Image
+	if imageVector != nil {
+		gardenerSeedAdmissionControllerImage, err := imageVector.FindImage(charts.ImageNameGardenerSeedAdmissionController)
+		if err != nil {
+			return nil, err
+		}
+		var (
+			repository = gardenerSeedAdmissionControllerImage.String()
+			tag        = version.Get().GitVersion
+		)
+		if gardenerSeedAdmissionControllerImage.Tag != nil {
+			repository = gardenerSeedAdmissionControllerImage.Repository
+			tag = *gardenerSeedAdmissionControllerImage.Tag
+		}
+		gsacImage = imagevector.Image{
+			Repository: repository,
+			Tag:        &tag,
+		}
+	}
+	components = append(components, seedadmissioncontroller.New(c.Client(), namespace, gsacImage.String(), kubernetesVersion))
+
+	// kube-scheduler for shoot control plane pods
+	var schedulerImage *imagevector.Image
+	if imageVector != nil {
+		schedulerImage, err = imageVector.FindImage(charts.ImageNameKubeScheduler, imagevector.TargetVersion(kubernetesVersion.String()))
+		if err != nil {
+			return nil, err
+		}
+	}
+	sched, err := gardenerkubescheduler.Bootstrap(c.DirectClient(), namespace, schedulerImage, kubernetesVersion)
+	if err != nil {
+		return nil, err
+	}
+	components = append(components, sched)
+
+	return components, nil
+}
+
+func managedIngress(seed *Seed) bool {
+	return seed.Info.Spec.Ingress != nil
 }
 
 // DesiredExcessCapacity computes the required resources (CPU and memory) required to deploy new shoot control planes
@@ -744,16 +993,28 @@ func DesiredExcessCapacity() int {
 // Only necessary to renew certificates for Alertmanager, Grafana, Prometheus
 // TODO: (timuthy) remove in future version.
 func (s *Seed) GetIngressFQDNDeprecated(subDomain, shootName, projectName string) string {
+	ingressDomain := s.IngressDomain()
+
 	if shootName == "" {
-		return fmt.Sprintf("%s.%s.%s", subDomain, projectName, s.Info.Spec.DNS.IngressDomain)
+		return fmt.Sprintf("%s.%s.%s", subDomain, projectName, ingressDomain)
 	}
-	return fmt.Sprintf("%s.%s.%s.%s", subDomain, shootName, projectName, s.Info.Spec.DNS.IngressDomain)
+	return fmt.Sprintf("%s.%s.%s.%s", subDomain, shootName, projectName, ingressDomain)
 }
 
 // GetIngressFQDN returns the fully qualified domain name of ingress sub-resource for the Seed cluster. The
 // end result is '<subDomain>.<shootName>.<projectName>.<seed-ingress-domain>'.
 func (s *Seed) GetIngressFQDN(subDomain string) string {
-	return fmt.Sprintf("%s.%s", subDomain, s.Info.Spec.DNS.IngressDomain)
+	return fmt.Sprintf("%s.%s", subDomain, s.IngressDomain())
+}
+
+// IngressDomain returns the ingress domain for the seed.
+func (s *Seed) IngressDomain() string {
+	if s.Info.Spec.DNS.IngressDomain != nil {
+		return *s.Info.Spec.DNS.IngressDomain
+	} else if s.Info.Spec.Ingress != nil {
+		return s.Info.Spec.Ingress.Domain
+	}
+	return ""
 }
 
 // CheckMinimumK8SVersion checks whether the Kubernetes version of the Seed cluster fulfills the minimal requirements.
@@ -839,13 +1100,193 @@ func determineClusterIdentity(ctx context.Context, c client.Client) (string, err
 	return clusterIdentity.Data[v1beta1constants.ClusterIdentity], nil
 }
 
-func deleteMutatingWebHookConfiguration(ctx context.Context, k8sSeedClient client.Client) error {
-	a := &admissionregistrationv1beta1.MutatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "gardener-seed-admission-controller",
-		},
+func getIngressClass(seedIngressEnabled bool) string {
+	if seedIngressEnabled {
+		return v1beta1constants.SeedNginxIngressClass
+	}
+	return v1beta1constants.ShootNginxIngressClass
+}
+
+func handleDNSProvider(ctx context.Context, gardenClient, seedClient client.Client, dnsConfig gardencorev1beta1.SeedDNS) error {
+	var (
+		dnsProvider = &dnsv1alpha1.DNSProvider{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: v1beta1constants.GardenNamespace,
+				Name:      "seed",
+			},
+		}
+		providerSecret = &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: v1beta1constants.GardenNamespace,
+				Name:      "dnsprovider-seed",
+			},
+		}
+	)
+
+	if dnsConfig.Provider == nil {
+		return kutil.DeleteObjects(ctx, seedClient, dnsProvider, providerSecret)
 	}
 
-	err := k8sSeedClient.Delete(ctx, a)
-	return client.IgnoreNotFound(err)
+	cloudProviderSecret := kutil.Key(dnsConfig.Provider.SecretRef.Namespace, dnsConfig.Provider.SecretRef.Name)
+	if err := copySecretFromGardenerToSeed(ctx, gardenClient, seedClient, cloudProviderSecret, providerSecret); err != nil {
+		return err
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, seedClient, dnsProvider, func() error {
+		dnsProvider.Spec = dnsv1alpha1.DNSProviderSpec{
+			Type: dnsConfig.Provider.Type,
+			SecretRef: &corev1.SecretReference{
+				Namespace: providerSecret.Namespace,
+				Name:      providerSecret.Name,
+			},
+		}
+
+		if dnsConfig.Provider.Domains != nil {
+			dnsProvider.Spec.Domains = &dnsv1alpha1.DNSSelection{
+				Include: dnsConfig.Provider.Domains.Include,
+				Exclude: dnsConfig.Provider.Domains.Exclude,
+			}
+		}
+
+		if dnsConfig.Provider.Zones != nil {
+			dnsProvider.Spec.Zones = &dnsv1alpha1.DNSSelection{
+				Include: dnsConfig.Provider.Zones.Include,
+				Exclude: dnsConfig.Provider.Zones.Exclude,
+			}
+		}
+
+		return nil
+	})
+	return err
+}
+
+func handleIngressDNSEntry(ctx context.Context, c kubernetes.Interface, chartApplier kubernetes.ChartApplier, seed *Seed) error {
+	var (
+		seedLogger = logger.Logger.WithField("seed", seed.Info.Name)
+		values     = &dns.EntryValues{Name: "ingress"}
+	)
+
+	if managedIngress(seed) {
+		loadBalancerAddress, err := kutil.WaitUntilLoadBalancerIsReady(
+			ctx,
+			c,
+			v1beta1constants.GardenNamespace,
+			"nginx-ingress-controller",
+			time.Minute,
+			seedLogger,
+		)
+		if err != nil {
+			return err
+		}
+
+		values.DNSName = seed.GetIngressFQDN("*")
+		values.Targets = []string{loadBalancerAddress}
+	}
+
+	dnsEntry := dns.NewDNSEntry(
+		values,
+		v1beta1constants.GardenNamespace,
+		chartApplier,
+		charts.Path,
+		seedLogger,
+		c.Client(),
+		nil,
+	)
+
+	if managedIngress(seed) {
+		return dnsEntry.Deploy(ctx)
+	}
+	return dnsEntry.Destroy(ctx)
+}
+
+const annotationSeedIngressClass = "seed.gardener.cloud/ingress-class"
+
+func migrateIngressClassForShootIngresses(ctx context.Context, gardenClient, seedClient client.Client, seed *Seed, newClass string) error {
+	if oldClass, ok := seed.Info.Annotations[annotationSeedIngressClass]; ok && oldClass == newClass {
+		return nil
+	}
+
+	shootNamespaces := &corev1.NamespaceList{}
+	if err := seedClient.List(ctx, shootNamespaces, client.MatchingLabels{v1beta1constants.GardenRole: v1beta1constants.GardenRoleShoot}); err != nil {
+		return err
+	}
+
+	for _, ns := range shootNamespaces.Items {
+		if err := switchIngressClass(ctx, seedClient, kutil.Key(ns.Name, "alertmanager"), newClass); err != nil {
+			return err
+		}
+		if err := switchIngressClass(ctx, seedClient, kutil.Key(ns.Name, "prometheus"), newClass); err != nil {
+			return err
+		}
+		if err := switchIngressClass(ctx, seedClient, kutil.Key(ns.Name, "grafana-operators"), newClass); err != nil {
+			return err
+		}
+		if err := switchIngressClass(ctx, seedClient, kutil.Key(ns.Name, "grafana-users"), newClass); err != nil {
+			return err
+		}
+	}
+
+	seedCopy := seed.Info.DeepCopy()
+	metav1.SetMetaDataAnnotation(&seed.Info.ObjectMeta, annotationSeedIngressClass, newClass)
+
+	return gardenClient.Patch(ctx, seed.Info, client.MergeFrom(seedCopy))
+}
+
+func switchIngressClass(ctx context.Context, seedClient client.Client, ingressKey types.NamespacedName, newClass string) error {
+	ingress := &extensionsv1beta1.Ingress{}
+	if err := seedClient.Get(ctx, ingressKey, ingress); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	ingress.Annotations["kubernetes.io/ingress.class"] = newClass
+	return seedClient.Update(ctx, ingress)
+}
+
+func copySecretFromGardenerToSeed(ctx context.Context, gardenClient, seedClient client.Client, secretKey types.NamespacedName, targetSecret *corev1.Secret) error {
+	gardenSecret := &corev1.Secret{}
+	if err := gardenClient.Get(ctx, secretKey, gardenSecret); err != nil {
+		return err
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, seedClient, targetSecret, func() error {
+		targetSecret.Type = gardenSecret.Type
+		targetSecret.Data = gardenSecret.Data
+		return nil
+	})
+	return err
+}
+
+func computeNginxIngress(seed *Seed) map[string]interface{} {
+	values := map[string]interface{}{
+		"enabled":      managedIngress(seed),
+		"ingressClass": v1beta1constants.SeedNginxIngressClass,
+	}
+
+	if seed.Info.Spec.Ingress != nil && seed.Info.Spec.Ingress.Controller.ProviderConfig != nil {
+		values["config"] = seed.Info.Spec.Ingress.Controller.ProviderConfig
+	}
+
+	return values
+}
+
+func deleteIngressController(ctx context.Context, c client.Client) error {
+	return kutil.DeleteObjects(
+		ctx,
+		c,
+		&rbacv1.ClusterRole{ObjectMeta: metav1.ObjectMeta{Name: "gardener.cloud:seed:nginx-ingress"}},
+		&rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{Name: "gardener.cloud:seed:nginx-ingress"}},
+		&corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: "nginx-ingress", Namespace: v1beta1constants.GardenNamespace}},
+		&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "nginx-ingress-controller", Namespace: v1beta1constants.GardenNamespace}},
+		&corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "nginx-ingress-controller", Namespace: v1beta1constants.GardenNamespace}},
+		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "nginx-ingress-controller", Namespace: v1beta1constants.GardenNamespace}},
+		&policyv1beta1.PodDisruptionBudget{ObjectMeta: metav1.ObjectMeta{Name: "nginx-ingress-controller", Namespace: v1beta1constants.GardenNamespace}},
+		&autoscalingv1beta2.VerticalPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: "nginx-ingress-controller", Namespace: v1beta1constants.GardenNamespace}},
+		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "nginx-ingress-k8s-backend", Namespace: v1beta1constants.GardenNamespace}},
+		&rbacv1.Role{ObjectMeta: metav1.ObjectMeta{Name: "nginx-ingress", Namespace: v1beta1constants.GardenNamespace}},
+		&rbacv1.RoleBinding{ObjectMeta: metav1.ObjectMeta{Name: "nginx-ingress", Namespace: v1beta1constants.GardenNamespace}},
+		&corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "nginx-ingress-k8s-backend", Namespace: v1beta1constants.GardenNamespace}},
+	)
 }

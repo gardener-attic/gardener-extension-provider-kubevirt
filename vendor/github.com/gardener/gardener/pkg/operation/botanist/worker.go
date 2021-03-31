@@ -17,215 +17,157 @@ package botanist
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	v1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
-	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
-	"github.com/gardener/gardener/pkg/operation/common"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/extensions/operatingsystemconfig/downloader"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/extensions/operatingsystemconfig/executor"
+	"github.com/gardener/gardener/pkg/operation/botanist/component/extensions/worker"
+	"github.com/gardener/gardener/pkg/utils/managedresources"
+	"github.com/gardener/gardener/pkg/utils/retry"
 	"github.com/gardener/gardener/pkg/utils/secrets"
-	versionutils "github.com/gardener/gardener/pkg/utils/version"
 
+	"github.com/hashicorp/go-multierror"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// WorkerDefaultTimeout is the default timeout and defines how long Gardener should wait
-// for a successful reconciliation of a worker resource.
-const WorkerDefaultTimeout = 10 * time.Minute
-
-// DeployWorker creates the `Worker` extension resource in the shoot namespace in the seed
-// cluster. Gardener waits until an external controller did reconcile the resource successfully.
-func (b *Botanist) DeployWorker(ctx context.Context) error {
-	var (
-		operation    = v1beta1constants.GardenerOperationReconcile
-		restorePhase = b.isRestorePhase()
-		worker       = &extensionsv1alpha1.Worker{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      b.Shoot.Info.Name,
-				Namespace: b.Shoot.SeedNamespace,
-			},
-		}
-
-		pools []extensionsv1alpha1.WorkerPool
-	)
-
-	k8sVersionLessThan115, err := versionutils.CompareVersions(b.Shoot.Info.Spec.Kubernetes.Version, "<", "1.15")
-	if err != nil {
-		return err
-	}
-
-	for _, workerPool := range b.Shoot.Info.Spec.Provider.Workers {
-		var volume *extensionsv1alpha1.Volume
-		if workerPool.Volume != nil {
-			volume = &extensionsv1alpha1.Volume{
-				Name:      workerPool.Volume.Name,
-				Type:      workerPool.Volume.Type,
-				Size:      workerPool.Volume.VolumeSize,
-				Encrypted: workerPool.Volume.Encrypted,
-			}
-		}
-
-		var dataVolumes []extensionsv1alpha1.DataVolume
-		if len(workerPool.DataVolumes) > 0 {
-			for _, dataVolume := range workerPool.DataVolumes {
-				dataVolumes = append(dataVolumes, extensionsv1alpha1.DataVolume{
-					Name:      dataVolume.Name,
-					Type:      dataVolume.Type,
-					Size:      dataVolume.VolumeSize,
-					Encrypted: dataVolume.Encrypted,
-				})
-			}
-		}
-
-		if workerPool.Labels == nil {
-			workerPool.Labels = map[string]string{}
-		}
-
-		// k8s node role labels
-		if k8sVersionLessThan115 {
-			workerPool.Labels["kubernetes.io/role"] = "node"
-			workerPool.Labels["node-role.kubernetes.io/node"] = ""
-		} else {
-			workerPool.Labels["node.kubernetes.io/role"] = "node"
-		}
-
-		if v1beta1helper.SystemComponentsAllowed(&workerPool) {
-			workerPool.Labels[v1beta1constants.LabelWorkerPoolSystemComponents] = strconv.FormatBool(workerPool.SystemComponents.Allow)
-		}
-
-		// worker pool name labels
-		workerPool.Labels[v1beta1constants.LabelWorkerPool] = workerPool.Name
-		workerPool.Labels[v1beta1constants.LabelWorkerPoolDeprecated] = workerPool.Name
-
-		// add CRI labels selected by the RuntimeClass
-		if workerPool.CRI != nil {
-			workerPool.Labels[extensionsv1alpha1.CRINameWorkerLabel] = string(workerPool.CRI.Name)
-			if len(workerPool.CRI.ContainerRuntimes) > 0 {
-				for _, cr := range workerPool.CRI.ContainerRuntimes {
-					key := fmt.Sprintf(extensionsv1alpha1.ContainerRuntimeNameWorkerLabel, cr.Type)
-					workerPool.Labels[key] = "true"
-				}
-			}
-		}
-
-		var pConfig *runtime.RawExtension
-		if workerPool.ProviderConfig != nil {
-			pConfig = &runtime.RawExtension{
-				Raw: workerPool.ProviderConfig.Raw,
-			}
-		}
-
-		pools = append(pools, extensionsv1alpha1.WorkerPool{
-			Name:           workerPool.Name,
-			Minimum:        workerPool.Minimum,
-			Maximum:        workerPool.Maximum,
-			MaxSurge:       *workerPool.MaxSurge,
-			MaxUnavailable: *workerPool.MaxUnavailable,
-			Annotations:    workerPool.Annotations,
-			Labels:         workerPool.Labels,
-			Taints:         workerPool.Taints,
-			MachineType:    workerPool.Machine.Type,
-			MachineImage: extensionsv1alpha1.MachineImage{
-				Name:    workerPool.Machine.Image.Name,
-				Version: *workerPool.Machine.Image.Version,
-			},
-			ProviderConfig:                   pConfig,
-			UserData:                         []byte(b.Shoot.OperatingSystemConfigsMap[workerPool.Name].Downloader.Data.Content),
-			Volume:                           volume,
-			DataVolumes:                      dataVolumes,
-			KubeletDataVolumeName:            workerPool.KubeletDataVolumeName,
-			Zones:                            workerPool.Zones,
-			MachineControllerManagerSettings: workerPool.MachineControllerManagerSettings,
-		})
-	}
-
-	if restorePhase {
-		operation = v1beta1constants.GardenerOperationWaitForState
-	}
-
-	_, err = controllerutil.CreateOrUpdate(ctx, b.K8sSeedClient.Client(), worker, func() error {
-		metav1.SetMetaDataAnnotation(&worker.ObjectMeta, v1beta1constants.GardenerOperation, operation)
-		metav1.SetMetaDataAnnotation(&worker.ObjectMeta, v1beta1constants.GardenerTimestamp, time.Now().UTC().String())
-		worker.Spec = extensionsv1alpha1.WorkerSpec{
-			DefaultSpec: extensionsv1alpha1.DefaultSpec{
-				Type: b.Shoot.Info.Spec.Provider.Type,
-			},
-			Region: b.Shoot.Info.Spec.Region,
-			SecretRef: corev1.SecretReference{
-				Name:      v1beta1constants.SecretNameCloudProvider,
-				Namespace: worker.Namespace,
-			},
-			SSHPublicKey: b.Secrets[v1beta1constants.SecretNameSSHKeyPair].Data[secrets.DataKeySSHAuthorizedKeys],
-			InfrastructureProviderStatus: &runtime.RawExtension{
-				Raw: b.Shoot.InfrastructureStatus,
-			},
-			Pools: pools,
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	if restorePhase {
-		return b.restoreExtensionObject(ctx, worker, extensionsv1alpha1.WorkerResource)
-	}
-
-	return nil
-}
-
-// DestroyWorker deletes the `Worker` extension resource in the shoot namespace in the seed cluster,
-// and it waits for a maximum of 5m until it is deleted.
-func (b *Botanist) DestroyWorker(ctx context.Context) error {
-	return common.DeleteExtensionCR(
-		ctx,
-		b.K8sSeedClient.Client(),
-		func() extensionsv1alpha1.Object { return &extensionsv1alpha1.Worker{} },
-		b.Shoot.SeedNamespace,
-		b.Shoot.Info.Name,
-	)
-}
-
-// WaitUntilWorkerReady waits until the worker extension resource has been successfully reconciled.
-func (b *Botanist) WaitUntilWorkerReady(ctx context.Context) error {
-	return common.WaitUntilExtensionCRReady(
-		ctx,
-		b.K8sSeedClient.DirectClient(),
+// DefaultWorker creates the default deployer for the Worker custom resource.
+func (b *Botanist) DefaultWorker(seedClient client.Client) worker.Interface {
+	return worker.New(
 		b.Logger,
-		func() runtime.Object { return &extensionsv1alpha1.Worker{} },
-		"Worker",
-		b.Shoot.SeedNamespace,
-		b.Shoot.Info.Name,
-		DefaultInterval,
-		DefaultSevereThreshold,
-		WorkerDefaultTimeout,
-		func(obj runtime.Object) error {
-			worker, ok := obj.(*extensionsv1alpha1.Worker)
-			if !ok {
-				return fmt.Errorf("expected extensionsv1alpha1.Worker but got %T", obj)
-			}
-
-			b.Shoot.MachineDeployments = worker.Status.MachineDeployments
-			return nil
+		seedClient,
+		&worker.Values{
+			Namespace:         b.Shoot.SeedNamespace,
+			Name:              b.Shoot.Info.Name,
+			Type:              b.Shoot.Info.Spec.Provider.Type,
+			Region:            b.Shoot.Info.Spec.Region,
+			Workers:           b.Shoot.Info.Spec.Provider.Workers,
+			KubernetesVersion: b.Shoot.KubernetesVersion,
 		},
+		worker.DefaultInterval,
+		worker.DefaultSevereThreshold,
+		worker.DefaultTimeout,
 	)
 }
 
-// WaitUntilWorkerDeleted waits until the worker extension resource has been deleted.
-func (b *Botanist) WaitUntilWorkerDeleted(ctx context.Context) error {
-	return common.WaitUntilExtensionCRDeleted(
-		ctx,
-		b.K8sSeedClient.DirectClient(),
-		b.Logger,
-		func() extensionsv1alpha1.Object { return &extensionsv1alpha1.Worker{} },
-		"Worker",
-		b.Shoot.SeedNamespace,
-		b.Shoot.Info.Name,
-		DefaultInterval,
-		WorkerDefaultTimeout,
-	)
+// DeployWorker deploys the Worker custom resource and triggers the restore operation in case
+// the Shoot is in the restore phase of the control plane migration
+func (b *Botanist) DeployWorker(ctx context.Context) error {
+	b.Shoot.Components.Extensions.Worker.SetSSHPublicKey(b.Secrets[v1beta1constants.SecretNameSSHKeyPair].Data[secrets.DataKeySSHAuthorizedKeys])
+	b.Shoot.Components.Extensions.Worker.SetInfrastructureProviderStatus(b.Shoot.Components.Extensions.Infrastructure.ProviderStatus())
+	b.Shoot.Components.Extensions.Worker.SetWorkerNameToOperatingSystemConfigsMap(b.Shoot.Components.Extensions.OperatingSystemConfig.WorkerNameToOperatingSystemConfigsMap())
+
+	if b.isRestorePhase() {
+		return b.Shoot.Components.Extensions.Worker.Restore(ctx, b.ShootState)
+	}
+
+	return b.Shoot.Components.Extensions.Worker.Deploy(ctx)
+}
+
+// WorkerPoolToNodesMap lists all the nodes with the given client in the shoot cluster. It returns a map whose key is
+// the name of a worker pool and whose values are the corresponding nodes.
+func WorkerPoolToNodesMap(ctx context.Context, shootClient client.Client) (map[string][]corev1.Node, error) {
+	nodeList := &corev1.NodeList{}
+	if err := shootClient.List(ctx, nodeList); err != nil {
+		return nil, err
+	}
+
+	workerPoolToNodes := make(map[string][]corev1.Node)
+	for _, node := range nodeList.Items {
+		if pool, ok := node.Labels[v1beta1constants.LabelWorkerPool]; ok {
+			workerPoolToNodes[pool] = append(workerPoolToNodes[pool], node)
+		}
+	}
+
+	return workerPoolToNodes, nil
+}
+
+// WorkerPoolToCloudConfigSecretChecksumMap lists all the cloud-config secrets with the given client in the shoot
+// cluster. It returns a map whose key is the name of a worker pool and whose values are the corresponding checksums of
+// the cloud-config script stored inside the secret's data.
+func WorkerPoolToCloudConfigSecretChecksumMap(ctx context.Context, shootClient client.Client) (map[string]string, error) {
+	secretList := &corev1.SecretList{}
+	if err := shootClient.List(ctx, secretList, client.MatchingLabels{v1beta1constants.GardenRole: v1beta1constants.GardenRoleCloudConfig}); err != nil {
+		return nil, err
+	}
+
+	workerPoolToCloudConfigSecretChecksum := make(map[string]string, len(secretList.Items))
+	for _, secret := range secretList.Items {
+		var (
+			poolName, ok1 = secret.Labels[v1beta1constants.LabelWorkerPool]
+			checksum, ok2 = secret.Annotations[downloader.AnnotationKeyChecksum]
+		)
+
+		if ok1 && ok2 {
+			workerPoolToCloudConfigSecretChecksum[poolName] = checksum
+		}
+	}
+
+	return workerPoolToCloudConfigSecretChecksum, nil
+}
+
+// CloudConfigUpdatedForAllWorkerPools checks if all the nodes for all the provided worker pools have successfully
+// applied the desired version of their cloud-config user data.
+func CloudConfigUpdatedForAllWorkerPools(workers []gardencorev1beta1.Worker, workerPoolToNodes map[string][]corev1.Node, workerPoolToCloudConfigSecretChecksum map[string]string) error {
+	var result error
+
+	for _, worker := range workers {
+		secretChecksum, ok := workerPoolToCloudConfigSecretChecksum[worker.Name]
+		if !ok {
+			// This is to ensure backwards-compatibility to not break existing clusters which don't have a secret
+			// checksum label yet.
+			continue
+		}
+
+		for _, node := range workerPoolToNodes[worker.Name] {
+			if nodeChecksum, ok := node.Annotations[executor.AnnotationKeyChecksum]; ok && nodeChecksum != secretChecksum {
+				result = multierror.Append(result, fmt.Errorf("the last successfully applied cloud config on node %q is outdated (current: %s, desired: %s)", node.Name, nodeChecksum, secretChecksum))
+			}
+		}
+	}
+
+	return result
+}
+
+// exposed for testing
+var (
+	// IntervalWaitCloudConfigUpdated is the interval when waiting until the cloud config was updated for all worker pools.
+	IntervalWaitCloudConfigUpdated = 5 * time.Second
+	// TimeoutWaitCloudConfigUpdated is the timeout when waiting until the cloud config was updated for all worker pools.
+	TimeoutWaitCloudConfigUpdated = downloader.UnitRestartSeconds*time.Second*2 + executor.ExecutionMaxDelaySeconds*time.Second
+)
+
+// WaitUntilCloudConfigUpdatedForAllWorkerPools waits for a maximum of 6 minutes until all the nodes for all the worker
+// pools in the Shoot have successfully applied the desired version of their cloud-config user data.
+func (b *Botanist) WaitUntilCloudConfigUpdatedForAllWorkerPools(ctx context.Context) error {
+	timeoutCtx, cancel := context.WithTimeout(ctx, TimeoutWaitCloudConfigUpdated)
+	defer cancel()
+
+	if err := managedresources.WaitUntilManagedResourceHealthy(timeoutCtx, b.K8sSeedClient.Client(), b.Shoot.SeedNamespace, CloudConfigExecutionManagedResourceName); err != nil {
+		return errors.Wrapf(err, "the cloud-config user data scripts for the worker nodes were not populated yet")
+	}
+
+	timeoutCtx2, cancel2 := context.WithTimeout(ctx, TimeoutWaitCloudConfigUpdated)
+	defer cancel2()
+
+	return retry.Until(timeoutCtx2, IntervalWaitCloudConfigUpdated, func(ctx context.Context) (done bool, err error) {
+		workerPoolToNodes, err := WorkerPoolToNodesMap(ctx, b.K8sShootClient.Client())
+		if err != nil {
+			return retry.SevereError(err)
+		}
+
+		workerPoolToCloudConfigSecretChecksum, err := WorkerPoolToCloudConfigSecretChecksumMap(ctx, b.K8sShootClient.Client())
+		if err != nil {
+			return retry.SevereError(err)
+		}
+
+		if err := CloudConfigUpdatedForAllWorkerPools(b.Shoot.Info.Spec.Provider.Workers, workerPoolToNodes, workerPoolToCloudConfigSecretChecksum); err != nil {
+			return retry.MinorError(err)
+		}
+
+		return retry.Ok()
+	})
 }

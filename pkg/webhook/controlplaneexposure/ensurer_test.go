@@ -23,7 +23,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	extensionswebhook "github.com/gardener/gardener/extensions/pkg/webhook"
-	"github.com/gardener/gardener/extensions/pkg/webhook/controlplane/genericmutator"
+	gcontext "github.com/gardener/gardener/extensions/pkg/webhook/context"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
@@ -60,7 +60,7 @@ var _ = Describe("Ensurer", func() {
 
 		ctrl *gomock.Controller
 
-		dummyContext = genericmutator.NewEnsurerContext(nil, nil)
+		dummyContext = gcontext.NewGardenContext(nil, nil)
 
 		svcKey = client.ObjectKey{Namespace: namespace, Name: v1beta1constants.DeploymentNameKubeAPIServer}
 		svc    = &corev1.Service{
@@ -144,7 +144,7 @@ var _ = Describe("Ensurer", func() {
 			// Create mock client
 			c := mockclient.NewMockClient(ctrl)
 			c.EXPECT().Get(context.TODO(), client.ObjectKey{Name: namespace}, &extensionsv1alpha1.Cluster{}).DoAndReturn(clientGet(cluster))
-			c.EXPECT().Get(context.TODO(), svcKey, &corev1.Service{}).DoAndReturn(clientGet(svc))
+			c.EXPECT().Get(context.TODO(), svcKey, gomock.AssignableToTypeOf(&corev1.Service{})).DoAndReturn(clientGet(svc))
 
 			// Create ensurer
 			ensurer := NewEnsurer(etcdStorage, logger)
@@ -179,7 +179,7 @@ var _ = Describe("Ensurer", func() {
 			// Create mock client
 			c := mockclient.NewMockClient(ctrl)
 			c.EXPECT().Get(context.TODO(), client.ObjectKey{Name: namespace}, &extensionsv1alpha1.Cluster{}).DoAndReturn(clientGet(cluster))
-			c.EXPECT().Get(context.TODO(), svcKey, &corev1.Service{}).DoAndReturn(clientGet(svc))
+			c.EXPECT().Get(context.TODO(), svcKey, gomock.AssignableToTypeOf(&corev1.Service{})).DoAndReturn(clientGet(svc))
 
 			// Create ensurer
 			ensurer := NewEnsurer(etcdStorage, logger)
