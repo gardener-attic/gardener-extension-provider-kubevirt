@@ -52,7 +52,7 @@ func init() {
 	// TODO: remove after MachineClass CRD deployment is fixed in gardener
 	utilruntime.Must(apiextensionsscheme.AddToScheme(Scheme))
 
-	decoder = serializer.NewCodecFactory(Scheme).UniversalDecoder()
+	decoder = serializer.NewCodecFactory(Scheme, serializer.EnableStrict).UniversalDecoder()
 }
 
 // ApplyMachineClassCRDs applies the MachineClass CRD,

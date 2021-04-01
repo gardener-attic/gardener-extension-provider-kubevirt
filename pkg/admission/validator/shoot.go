@@ -35,9 +35,10 @@ import (
 )
 
 type shoot struct {
-	client    client.Client
-	apiReader client.Reader
-	decoder   runtime.Decoder
+	client         client.Client
+	apiReader      client.Reader
+	decoder        runtime.Decoder
+	lenientDecoder runtime.Decoder
 }
 
 // NewShootValidator returns a new instance of a shoot validator.
@@ -47,7 +48,8 @@ func NewShootValidator() extensionswebhook.Validator {
 
 // InjectScheme injects the given scheme into the validator.
 func (s *shoot) InjectScheme(scheme *runtime.Scheme) error {
-	s.decoder = serializer.NewCodecFactory(scheme).UniversalDecoder()
+	s.decoder = serializer.NewCodecFactory(scheme, serializer.EnableStrict).UniversalDecoder()
+	s.lenientDecoder = serializer.NewCodecFactory(scheme).UniversalDecoder()
 	return nil
 }
 
@@ -124,7 +126,7 @@ func (s *shoot) validateContext(valContext *validationContext) field.ErrorList {
 }
 
 func (s *shoot) validateCreate(ctx context.Context, shoot *core.Shoot) error {
-	validationContext, err := s.newValidationContext(ctx, shoot)
+	validationContext, err := s.newValidationContext(ctx, shoot, s.decoder)
 	if err != nil {
 		return err
 	}
@@ -137,12 +139,12 @@ func (s *shoot) validateCreate(ctx context.Context, shoot *core.Shoot) error {
 }
 
 func (s *shoot) validateUpdate(ctx context.Context, oldShoot, shoot *core.Shoot) error {
-	oldValContext, err := s.newValidationContext(ctx, oldShoot)
+	oldValContext, err := s.newValidationContext(ctx, oldShoot, s.lenientDecoder)
 	if err != nil {
 		return err
 	}
 
-	currentValContext, err := s.newValidationContext(ctx, shoot)
+	currentValContext, err := s.newValidationContext(ctx, shoot, s.decoder)
 	if err != nil {
 		return err
 	}
@@ -179,11 +181,11 @@ func (s *shoot) validateUpdate(ctx context.Context, oldShoot, shoot *core.Shoot)
 
 }
 
-func (s *shoot) newValidationContext(ctx context.Context, shoot *core.Shoot) (*validationContext, error) {
+func (s *shoot) newValidationContext(ctx context.Context, shoot *core.Shoot, decoder runtime.Decoder) (*validationContext, error) {
 	infrastructureConfig := &apiskubevirt.InfrastructureConfig{}
 	if shoot.Spec.Provider.InfrastructureConfig != nil {
 		var err error
-		infrastructureConfig, err = admission.DecodeInfrastructureConfig(s.decoder, shoot.Spec.Provider.InfrastructureConfig)
+		infrastructureConfig, err = admission.DecodeInfrastructureConfig(decoder, shoot.Spec.Provider.InfrastructureConfig)
 		if err != nil {
 			return nil, errors.Wrapf(err, "could not decode infrastructureConfig of shoot %q", shoot.Name)
 		}
@@ -192,7 +194,7 @@ func (s *shoot) newValidationContext(ctx context.Context, shoot *core.Shoot) (*v
 	controlPlaneConfig := &apiskubevirt.ControlPlaneConfig{}
 	if shoot.Spec.Provider.ControlPlaneConfig != nil {
 		var err error
-		controlPlaneConfig, err = admission.DecodeControlPlaneConfig(s.decoder, shoot.Spec.Provider.ControlPlaneConfig)
+		controlPlaneConfig, err = admission.DecodeControlPlaneConfig(decoder, shoot.Spec.Provider.ControlPlaneConfig)
 		if err != nil {
 			return nil, errors.Wrapf(err, "could not decode controlPlaneConfig of shoot %q", shoot.Name)
 		}
@@ -203,7 +205,7 @@ func (s *shoot) newValidationContext(ctx context.Context, shoot *core.Shoot) (*v
 		workerConfig := &apiskubevirt.WorkerConfig{}
 		if worker.ProviderConfig != nil {
 			var err error
-			workerConfig, err = admission.DecodeWorkerConfig(s.decoder, worker.ProviderConfig)
+			workerConfig, err = admission.DecodeWorkerConfig(decoder, worker.ProviderConfig)
 			if err != nil {
 				return nil, errors.Wrapf(err, "could not decode providerConfig of worker %q", worker.Name)
 			}
@@ -223,7 +225,7 @@ func (s *shoot) newValidationContext(ctx context.Context, shoot *core.Shoot) (*v
 	if cloudProfile.Spec.ProviderConfig == nil {
 		return nil, errors.Errorf("missing providerConfig in cloud profile %q", cloudProfile.Name)
 	}
-	cloudProfileConfig, err := admission.DecodeCloudProfileConfig(s.decoder, cloudProfile.Spec.ProviderConfig)
+	cloudProfileConfig, err := admission.DecodeCloudProfileConfig(decoder, cloudProfile.Spec.ProviderConfig)
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not decode providerConfig of cloud profile %q", cloudProfile.Name)
 	}
