@@ -27,6 +27,7 @@ import (
 )
 
 // +genclient
+// +genclient:method=CreateAdminKubeconfigRequest,verb=create,subresource=adminkubeconfig,input=github.com/gardener/gardener/pkg/apis/authentication/v1alpha1.AdminKubeconfigRequest,result=github.com/gardener/gardener/pkg/apis/authentication/v1alpha1.AdminKubeconfigRequest
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type Shoot struct {
@@ -105,6 +106,9 @@ type ShootSpec struct {
 	// +patchStrategy=merge
 	// +optional
 	Tolerations []Toleration `json:"tolerations,omitempty" patchStrategy:"merge" patchMergeKey:"key" protobuf:"bytes,17,rep,name=tolerations"`
+	// ExposureClassName is the optional name of an exposure class to apply a control plane endpoint exposure strategy.
+	// +optional
+	ExposureClassName *string `json:"exposureClassName,omitempty" protobuf:"bytes,18,opt,name=exposureClassName"`
 }
 
 // ShootStatus holds the most recently observed status of the Shoot cluster.
@@ -153,6 +157,19 @@ type ShootStatus struct {
 	// ClusterIdentity is the identity of the Shoot cluster
 	// +optional
 	ClusterIdentity *string `json:"clusterIdentity,omitempty" protobuf:"bytes,13,opt,name=clusterIdentity"`
+	// List of addresses on which the Kube API server can be reached.
+	// +optional
+	// +patchMergeKey=name
+	// +patchStrategy=merge
+	AdvertisedAddresses []ShootAdvertisedAddress `json:"advertisedAddresses,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,14,rep,name=advertisedAddresses"`
+}
+
+// ShootAdvertisedAddress contains information for the shoot's Kube API server.
+type ShootAdvertisedAddress struct {
+	// Name of the advertised address. e.g. external
+	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
+	// The URL of the API Server. e.g. https://api.foo.bar or https://1.2.3.4
+	URL string `json:"url" protobuf:"bytes,2,opt,name=url"`
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -472,6 +489,11 @@ type KubeAPIServerConfig struct {
 	// Requests contains configuration for request-specific settings for the kube-apiserver.
 	// +optional
 	Requests *KubeAPIServerRequests `json:"requests,omitempty" protobuf:"bytes,10,opt,name=requests"`
+	// EnableAnonymousAuthentication defines whether anonymous requests to the secure port
+	// of the API server should be allowed (flag `--anonymous-auth`).
+	// See: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/
+	// +optional
+	EnableAnonymousAuthentication *bool `json:"enableAnonymousAuthentication,omitempty" protobuf:"varint,11,opt,name=enableAnonymousAuthentication"`
 }
 
 // KubeAPIServerRequests contains configuration for request-specific settings for the kube-apiserver.
@@ -536,7 +558,6 @@ type OIDCConfig struct {
 	// The URL of the OpenID issuer, only HTTPS scheme will be accepted. If set, it will be used to verify the OIDC JSON Web Token (JWT).
 	// +optional
 	IssuerURL *string `json:"issuerURL,omitempty" protobuf:"bytes,6,opt,name=issuerURL"`
-	// ATTENTION: Only meaningful for Kubernetes >= 1.11
 	// key=value pairs that describes a required claim in the ID Token. If set, the claim is verified to be present in the ID Token with a matching value.
 	// +optional
 	RequiredClaims map[string]string `json:"requiredClaims,omitempty" protobuf:"bytes,7,rep,name=requiredClaims"`
@@ -610,6 +631,9 @@ type KubeControllerManagerConfig struct {
 	// PodEvictionTimeout defines the grace period for deleting pods on failed nodes. Defaults to 2m.
 	// +optional
 	PodEvictionTimeout *metav1.Duration `json:"podEvictionTimeout,omitempty" protobuf:"bytes,4,opt,name=podEvictionTimeout"`
+	// NodeMonitorGracePeriod defines the grace period before an unresponsive node is marked unhealthy.
+	// +optional
+	NodeMonitorGracePeriod *metav1.Duration `json:"nodeMonitorGracePeriod,omitempty" protobuf:"bytes,5,opt,name=nodeMonitorGracePeriod"`
 }
 
 // HorizontalPodAutoscalerConfig contains horizontal pod autoscaler configuration settings for the kube-controller-manager.
@@ -618,9 +642,6 @@ type HorizontalPodAutoscalerConfig struct {
 	// The period after which a ready pod transition is considered to be the first.
 	// +optional
 	CPUInitializationPeriod *metav1.Duration `json:"cpuInitializationPeriod,omitempty" protobuf:"bytes,1,opt,name=cpuInitializationPeriod"`
-	// The period since last downscale, before another downscale can be performed in horizontal pod autoscaler.
-	// +optional
-	DownscaleDelay *metav1.Duration `json:"downscaleDelay,omitempty" protobuf:"bytes,2,opt,name=downscaleDelay"`
 	// The configurable window at which the controller will choose the highest recommendation for autoscaling.
 	// +optional
 	DownscaleStabilization *metav1.Duration `json:"downscaleStabilization,omitempty" protobuf:"bytes,3,opt,name=downscaleStabilization"`
@@ -633,20 +654,13 @@ type HorizontalPodAutoscalerConfig struct {
 	// The minimum change (from 1.0) in the desired-to-actual metrics ratio for the horizontal pod autoscaler to consider scaling.
 	// +optional
 	Tolerance *float64 `json:"tolerance,omitempty" protobuf:"fixed64,6,opt,name=tolerance"`
-	// The period since last upscale, before another upscale can be performed in horizontal pod autoscaler.
-	// +optional
-	UpscaleDelay *metav1.Duration `json:"upscaleDelay,omitempty" protobuf:"bytes,7,opt,name=upscaleDelay"`
 }
 
 const (
-	// DefaultHPADownscaleDelay is a constant for the default HPA downscale delay for a Shoot cluster.
-	DefaultHPADownscaleDelay = 15 * time.Minute
 	// DefaultHPASyncPeriod is a constant for the default HPA sync period for a Shoot cluster.
 	DefaultHPASyncPeriod = 30 * time.Second
 	// DefaultHPATolerance is a constant for the default HPA tolerance for a Shoot cluster.
 	DefaultHPATolerance = 0.1
-	// DefaultHPAUpscaleDelay is for the default HPA upscale delay for a Shoot cluster.
-	DefaultHPAUpscaleDelay = 1 * time.Minute
 	// DefaultDownscaleStabilization is the default HPA downscale stabilization window for a Shoot cluster
 	DefaultDownscaleStabilization = 5 * time.Minute
 	// DefaultInitialReadinessDelay is for the default HPA  ReadinessDelay value in the Shoot cluster
@@ -832,7 +846,6 @@ type KubeletConfigReserved struct {
 	// +optional
 	EphemeralStorage *resource.Quantity `json:"ephemeralStorage,omitempty" protobuf:"bytes,3,opt,name=ephemeralStorage"`
 	// PID is the reserved process-ids.
-	// To reserve PID, the SupportNodePidsLimit feature gate must be enabled in Kubernetes versions < 1.15.
 	// +optional
 	PID *resource.Quantity `json:"pid,omitempty" protobuf:"bytes,4,opt,name=pid"`
 }

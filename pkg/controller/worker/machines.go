@@ -184,8 +184,8 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-		case machineType.Storage != nil:
-			rootVolumeClassName, rootVolumeSize = machineType.Storage.Class, machineType.Storage.StorageSize
+		case machineType.Storage != nil && machineType.Storage.StorageSize != nil:
+			rootVolumeClassName, rootVolumeSize = machineType.Storage.Class, *machineType.Storage.StorageSize
 		default:
 			return errors.New("missing volume in worker pool and storage in machine type")
 		}

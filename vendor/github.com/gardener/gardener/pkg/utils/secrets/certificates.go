@@ -21,20 +21,21 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"net"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/utils"
 	"github.com/gardener/gardener/pkg/utils/infodata"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type certType string
@@ -81,6 +82,10 @@ type CertificateSecretConfig struct {
 	PKCS      int
 
 	Validity *time.Duration
+
+	// Now should only be set in tests.
+	// Defaults to time.Now
+	Now func() time.Time
 }
 
 // Certificate contains the private key, and the certificate. It does also contain the CA certificate
@@ -284,7 +289,13 @@ func LoadCAFromSecret(ctx context.Context, k8sClient client.Client, namespace, n
 // or both, depending on the <certType> value. If <isCACert> is true, then a CA certificate is being created.
 // The certificates a valid for 10 years.
 func (s *CertificateSecretConfig) generateCertificateTemplate() *x509.Certificate {
-	now := time.Now()
+	nowFunc := time.Now
+
+	if s.Now != nil {
+		nowFunc = s.Now
+	}
+
+	now := nowFunc()
 	expiration := now.AddDate(10, 0, 0) // + 10 years
 	if s.Validity != nil {
 		expiration = now.Add(*s.Validity)
@@ -430,10 +441,10 @@ const TemporaryDirectoryForSelfGeneratedTLSCertificatesPattern = "self-generated
 // the generated CA + server certificate bytes into a temporary directory with the default filenames, e.g. `DataKeyCertificateCA`.
 // The function will return the *Certificate object as well as the path of the temporary directory where the
 // certificates are stored.
-func SelfGenerateTLSServerCertificate(name string, dnsNames []string) (*Certificate, string, error) {
-	tempDir, err := ioutil.TempDir("", TemporaryDirectoryForSelfGeneratedTLSCertificatesPattern)
+func SelfGenerateTLSServerCertificate(name string, dnsNames []string, ips []net.IP) (cert *Certificate, ca *Certificate, dir string, rErr error) {
+	tempDir, err := os.MkdirTemp("", TemporaryDirectoryForSelfGeneratedTLSCertificatesPattern)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 
 	caCertificateConfig := &CertificateSecretConfig{
@@ -443,32 +454,33 @@ func SelfGenerateTLSServerCertificate(name string, dnsNames []string) (*Certific
 	}
 	caCertificate, err := caCertificateConfig.GenerateCertificate()
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
-	if err := ioutil.WriteFile(filepath.Join(tempDir, DataKeyCertificateCA), caCertificate.CertificatePEM, 0644); err != nil {
-		return nil, "", err
+	if err := os.WriteFile(filepath.Join(tempDir, DataKeyCertificateCA), caCertificate.CertificatePEM, 0644); err != nil {
+		return nil, nil, "", err
 	}
-	if err := ioutil.WriteFile(filepath.Join(tempDir, DataKeyPrivateKeyCA), caCertificate.PrivateKeyPEM, 0644); err != nil {
-		return nil, "", err
+	if err := os.WriteFile(filepath.Join(tempDir, DataKeyPrivateKeyCA), caCertificate.PrivateKeyPEM, 0644); err != nil {
+		return nil, nil, "", err
 	}
 
 	certificateConfig := &CertificateSecretConfig{
-		Name:       name,
-		CommonName: name,
-		DNSNames:   dnsNames,
-		CertType:   ServerCert,
-		SigningCA:  caCertificate,
+		Name:        name,
+		CommonName:  name,
+		DNSNames:    dnsNames,
+		IPAddresses: ips,
+		CertType:    ServerCert,
+		SigningCA:   caCertificate,
 	}
 	certificate, err := certificateConfig.GenerateCertificate()
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
-	if err := ioutil.WriteFile(filepath.Join(tempDir, DataKeyCertificate), certificate.CertificatePEM, 0644); err != nil {
-		return nil, "", err
+	if err := os.WriteFile(filepath.Join(tempDir, DataKeyCertificate), certificate.CertificatePEM, 0644); err != nil {
+		return nil, nil, "", err
 	}
-	if err := ioutil.WriteFile(filepath.Join(tempDir, DataKeyPrivateKey), certificate.PrivateKeyPEM, 0644); err != nil {
-		return nil, "", err
+	if err := os.WriteFile(filepath.Join(tempDir, DataKeyPrivateKey), certificate.PrivateKeyPEM, 0644); err != nil {
+		return nil, nil, "", err
 	}
 
-	return certificate, tempDir, nil
+	return certificate, caCertificate, tempDir, nil
 }

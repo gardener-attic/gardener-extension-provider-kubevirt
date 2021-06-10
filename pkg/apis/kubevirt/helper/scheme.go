@@ -22,8 +22,8 @@ import (
 
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
-	"github.com/gardener/gardener/pkg/operation/common"
 	"github.com/gardener/gardener/pkg/utils"
+	"github.com/gardener/gardener/pkg/utils/gardener"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/pkg/errors"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -60,7 +60,7 @@ func init() {
 // this function should be removed once it's fixed in Gardner
 func ApplyMachineClassCRDs(ctx context.Context, config *rest.Config) error {
 	deletionProtectionLabels := map[string]string{
-		common.GardenerDeletionProtected: "true",
+		gardener.DeletionProtected: "true",
 	}
 
 	machineClassCRD := &apiextensionsv1beta1.CustomResourceDefinition{
