@@ -17,12 +17,18 @@ package validation
 import (
 	apiskubevirt "github.com/gardener/gardener-extension-provider-kubevirt/pkg/apis/kubevirt"
 
+	corevalidation "github.com/gardener/gardener/pkg/apis/core/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 // ValidateControlPlaneConfig validates a ControlPlaneConfig object.
-func ValidateControlPlaneConfig(config *apiskubevirt.ControlPlaneConfig, fldPath *field.Path) field.ErrorList {
+func ValidateControlPlaneConfig(config *apiskubevirt.ControlPlaneConfig, version string, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
+
+	if config.CloudControllerManager != nil {
+		allErrs = append(allErrs, corevalidation.ValidateFeatureGates(config.CloudControllerManager.FeatureGates, version, fldPath.Child("cloudControllerManager", "featureGates"))...)
+	}
+
 	return allErrs
 }
 
