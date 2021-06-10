@@ -77,6 +77,16 @@ func HasMetaDataAnnotation(meta metav1.Object, key, value string) bool {
 	return ok && val == value
 }
 
+// SetAnnotationAndUpdate sets the annotation on the given object and updates it.
+func SetAnnotationAndUpdate(ctx context.Context, c client.Client, obj client.Object, key, value string) error {
+	if !HasMetaDataAnnotation(obj, key, value) {
+		objCopy := obj.DeepCopyObject()
+		SetMetaDataAnnotation(obj, key, value)
+		return c.Patch(ctx, obj, client.MergeFrom(objCopy))
+	}
+	return nil
+}
+
 func nameAndNamespace(namespaceOrName string, nameOpt ...string) (namespace, name string) {
 	if len(nameOpt) > 1 {
 		panic(fmt.Sprintf("more than name/namespace for key specified: %s/%v", namespaceOrName, nameOpt))
@@ -186,7 +196,7 @@ func WaitUntilLoadBalancerIsReady(ctx context.Context, kubeClient kubernetes.Int
 		const eventsLimit = 2
 
 		// use API reader here, we don't want to cache all events
-		eventsErrorMessage, err2 := FetchEventMessages(ctx, kubeClient.Client().Scheme(), kubeClient.APIReader(), service, corev1.EventTypeWarning, eventsLimit)
+		eventsErrorMessage, err2 := FetchEventMessages(ctx, kubeClient.Client().Scheme(), kubeClient.Client(), service, corev1.EventTypeWarning, eventsLimit)
 		if err2 != nil {
 			logger.Errorf("error %q occured while fetching events for error %q", err2, err)
 			return "", fmt.Errorf("'%w' occurred but could not fetch events for more information", err)
@@ -305,7 +315,7 @@ func ReconcileServicePorts(existingPorts []corev1.ServicePort, desiredPorts []co
 func FetchEventMessages(ctx context.Context, scheme *runtime.Scheme, reader client.Reader, obj client.Object, eventType string, eventsLimit int) (string, error) {
 	gvk, err := apiutil.GVKForObject(obj, scheme)
 	if err != nil {
-		return "", fmt.Errorf("failed identify GVK for object: %w", err)
+		return "", fmt.Errorf("failed to identify GVK for object: %w", err)
 	}
 
 	apiVersion, kind := gvk.ToAPIVersionAndKind()
@@ -503,13 +513,26 @@ func NewestPodForDeployment(ctx context.Context, c client.Reader, deployment *ap
 		return nil, fmt.Errorf("object is not of type *appsv1.ReplicaSet but %T", replicaSet)
 	}
 
+	if newestReplicaSet.Spec.Selector == nil {
+		return nil, fmt.Errorf("no pod selector specified in replicaSet %s/%s", newestReplicaSet.Namespace, newestReplicaSet.Name)
+	}
+
+	if len(newestReplicaSet.Spec.Selector.MatchLabels)+len(newestReplicaSet.Spec.Selector.MatchExpressions) == 0 {
+		return nil, fmt.Errorf("no matchLabels or matchExpressions specified in replicaSet %s/%s", newestReplicaSet.Namespace, newestReplicaSet.Name)
+	}
+
+	podSelector, err := metav1.LabelSelectorAsSelector(newestReplicaSet.Spec.Selector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert the pod selector from ReplicaSet %s/%s: %v", newestReplicaSet.Namespace, newestReplicaSet.Name, err)
+	}
+
+	listOpts = append(listOpts, client.MatchingLabelsSelector{Selector: podSelector})
+
 	pod, err := NewestObject(
 		ctx,
 		c,
 		&corev1.PodList{},
-		func(obj client.Object) bool {
-			return OwnedBy(obj, appsv1.SchemeGroupVersion.String(), "ReplicaSet", newestReplicaSet.Name, newestReplicaSet.UID)
-		},
+		nil,
 		listOpts...,
 	)
 	if err != nil {
@@ -534,7 +557,8 @@ func MostRecentCompleteLogs(
 	podInterface corev1client.PodInterface,
 	pod *corev1.Pod,
 	containerName string,
-	tailLines *int64,
+	tailLines,
+	headBytes *int64,
 ) (
 	string,
 	error,
@@ -547,7 +571,7 @@ func MostRecentCompleteLogs(
 		}
 	}
 
-	logs, err := kubernetes.GetPodLogs(ctx, podInterface, pod.Name, &corev1.PodLogOptions{
+	lastLogLines, err := kubernetes.GetPodLogs(ctx, podInterface, pod.Name, &corev1.PodLogOptions{
 		Container: containerName,
 		TailLines: tailLines,
 		Previous:  previousLogs,
@@ -556,5 +580,27 @@ func MostRecentCompleteLogs(
 		return "", err
 	}
 
-	return string(logs), nil
+	if headBytes == nil || *headBytes <= 0 {
+		return string(lastLogLines), nil
+	}
+
+	firstLogLines, err := kubernetes.GetPodLogs(ctx, podInterface, pod.Name, &corev1.PodLogOptions{
+		Container:  containerName,
+		Previous:   previousLogs,
+		LimitBytes: headBytes,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s\n...\n%s", firstLogLines, lastLogLines), nil
+}
+
+// IgnoreAlreadyExists returns nil on AlreadyExists errors.
+// All other values that are not AlreadyExists errors or nil are returned unmodified.
+func IgnoreAlreadyExists(err error) error {
+	if apierrors.IsAlreadyExists(err) {
+		return nil
+	}
+	return err
 }

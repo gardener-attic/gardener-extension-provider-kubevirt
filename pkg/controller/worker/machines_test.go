@@ -813,7 +813,7 @@ func createCluster(cloudProfileName, shootVersion string, images []kubevirtv1alp
 						CPU:    resource.MustParse("2"),
 						Storage: &gardencorev1beta1.MachineTypeStorage{
 							Class:       "standard",
-							StorageSize: resource.MustParse("8Gi"),
+							StorageSize: quantityPtr(resource.MustParse("8Gi")),
 							Type:        "DataVolume",
 						},
 					},
@@ -863,3 +863,5 @@ func encode(obj runtime.Object) []byte {
 	data, _ := json.Marshal(obj)
 	return data
 }
+
+func quantityPtr(v resource.Quantity) *resource.Quantity { return &v }

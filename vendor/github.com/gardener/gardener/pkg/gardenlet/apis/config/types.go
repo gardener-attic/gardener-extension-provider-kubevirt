@@ -67,6 +67,8 @@ type GardenletConfiguration struct {
 	// SNI contains an optional configuration for the APIServerSNI feature used
 	// by the Gardenlet in the seed clusters.
 	SNI *SNI
+	// ExposureClassHandlers is a list of optional of exposure class handlers.
+	ExposureClassHandlers []ExposureClassHandler
 }
 
 // GardenClientConnection specifies the kubeconfig file and the client connection settings
@@ -266,6 +268,10 @@ type ManagedSeedControllerConfiguration struct {
 	// ConcurrentSyncs is the number of workers used for the controller to work on
 	// events.
 	ConcurrentSyncs *int
+	// SyncPeriod is the duration how often the existing resources are reconciled.
+	SyncPeriod *metav1.Duration
+	// WaitSyncPeriod is the duration how often an existing resource is reconciled when the controller is waiting for an event.
+	WaitSyncPeriod *metav1.Duration
 	// SyncJitterPeriod is a jitter duration for the reconciler sync that can be used to distribute the syncs randomly.
 	// If its value is greater than 0 then the managed seeds will not be enqueued immediately but only after a random
 	// duration between 0 and the configured value. It is defaulted to 5m.
@@ -378,4 +384,23 @@ type SNIIngress struct {
 	// Labels of the ingressgateway
 	// Defaults to "istio: ingressgateway".
 	Labels map[string]string
+}
+
+// ExposureClassHandler contains configuration for an exposure class handler.
+type ExposureClassHandler struct {
+	// Name is the name of the exposure class handler.
+	Name string
+	// LoadBalancerService contains configuration which is used to configure the underlying
+	// load balancer to apply the control plane endpoint exposure strategy.
+	LoadBalancerService LoadBalancerServiceConfig
+	// SNI contains optional configuration for a dedicated ingressgateway belonging to
+	// an exposure class handler. This is only required in context of the APIServerSNI feature of the gardenlet.
+	SNI *SNI
+}
+
+// LoadBalancerService contains configuration which is used to configure the underlying
+// load balancer to apply the control plane endpoint exposure strategy.
+type LoadBalancerServiceConfig struct {
+	// Annotations is a key value map to annotate the underlying load balancer services.
+	Annotations map[string]string
 }
