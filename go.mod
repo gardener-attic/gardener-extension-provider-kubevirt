@@ -10,7 +10,6 @@ require (
 	github.com/gardener/gardener v1.24.0
 	github.com/gardener/machine-controller-manager v0.36.0
 	github.com/go-logr/logr v0.3.0
-	github.com/gobuffalo/packr/v2 v2.8.1
 	github.com/golang/mock v1.5.0
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200626054723-37f83d1996bc
 	github.com/mitchellh/copystructure v1.1.1 // indirect
