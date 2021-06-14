@@ -116,7 +116,7 @@ func (s *shoot) validateContext(valContext *validationContext) field.ErrorList {
 
 	allErrors = append(allErrors, validation.ValidateNetworking(valContext.shoot.Spec.Networking, networkPath)...)
 	allErrors = append(allErrors, validation.ValidateInfrastructureConfig(valContext.infrastructureConfig, infrastructureConfigPath)...)
-	allErrors = append(allErrors, validation.ValidateControlPlaneConfig(valContext.controlPlaneConfig, controlPlaneConfigPath)...)
+	allErrors = append(allErrors, validation.ValidateControlPlaneConfig(valContext.controlPlaneConfig, valContext.shoot.Spec.Kubernetes.Version, controlPlaneConfigPath)...)
 	allErrors = append(allErrors, validation.ValidateWorkers(valContext.shoot.Spec.Provider.Workers, workersPath)...)
 	for i, workerConfigContext := range valContext.workerConfigsContexts {
 		allErrors = append(allErrors, validation.ValidateWorkerConfig(workerConfigContext.workerConfig, workerConfigContext.dataVolumes, workerConfigPath(i))...)

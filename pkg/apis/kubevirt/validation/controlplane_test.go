@@ -20,6 +20,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
@@ -36,7 +37,30 @@ var _ = Describe("ControlPlaneConfig validation", func() {
 
 	Describe("#ValidateControlPlaneConfig", func() {
 		It("should return no errors for a valid configuration", func() {
-			Expect(ValidateControlPlaneConfig(controlPlane, nilPath)).To(BeEmpty())
+			Expect(ValidateControlPlaneConfig(controlPlane, "", nilPath)).To(BeEmpty())
+		})
+
+		It("should fail with invalid CCM feature gates", func() {
+			controlPlane.CloudControllerManager = &apiskubevirt.CloudControllerManagerConfig{
+				FeatureGates: map[string]bool{
+					"AnyVolumeDataSource":      true,
+					"CustomResourceValidation": true,
+					"Foo":                      true,
+				},
+			}
+
+			errorList := ValidateControlPlaneConfig(controlPlane, "1.18.14", nilPath)
+
+			Expect(errorList).To(ConsistOf(
+				PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":  Equal(field.ErrorTypeForbidden),
+					"Field": Equal("cloudControllerManager.featureGates.CustomResourceValidation"),
+				})),
+				PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":  Equal(field.ErrorTypeInvalid),
+					"Field": Equal("cloudControllerManager.featureGates.Foo"),
+				})),
+			))
 		})
 	})
 
