@@ -22,6 +22,20 @@ data:
         Reserve_Data        True
 
     [FILTER]
-        Name record_modifier
-        Match *kubevirt-cloud-controller-manager*
-        Record type user
+        Name                parser
+        Match               kubernetes.machine-controller-manager*machine-controller-manager-provider-kubevirt*
+        Key_Name            log
+        Parser              kubeapiserverParser
+        Reserve_Data        True
+
+    [FILTER]
+        Name                rewrite_tag
+        Match               kubernetes.*
+        Rule                $tag ^kubernetes\.var\.log\.containers\.cloud-controller-manager-.+?_.+?_kubevirt-cloud-controller-manager user-exposed.$TAG true
+        Emitter_Name        re_emitted-provider-kubevirt
+
+    [FILTER]
+        Name                rewrite_tag
+        Match               kubernetes.*
+        Rule                $tag ^kubernetes\.var\.log\.containers\.machine-controller-manager-.+?_.+?_(kubevirt-machine-controller-manager|machine-controller-manager-provider-kubevirt) user-exposed.$TAG true
+        Emitter_Name        re_emitted-provider-kubevirt-mcm
