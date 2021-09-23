@@ -1,7 +1,7 @@
 {{- define "cloud-provider-config" -}}
 kubeconfig: |
 {{ .Values.kubeconfig | indent 2 }}
-loadBalancer:
+loadbalancer:
   enabled: {{ .Values.loadBalancer.enabled }}
   creationPollInterval: {{ .Values.loadBalancer.creationPollInterval }}
 instances:
