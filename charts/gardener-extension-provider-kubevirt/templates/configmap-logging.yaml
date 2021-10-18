@@ -29,13 +29,13 @@ data:
         Reserve_Data        True
 
     [FILTER]
-        Name                rewrite_tag
+        Name                modify
         Match               kubernetes.*
-        Rule                $tag ^kubernetes\.var\.log\.containers\.cloud-controller-manager-.+?_.+?_kubevirt-cloud-controller-manager user-exposed.$TAG true
-        Emitter_Name        re_emitted-provider-kubevirt
+        Condition           Key_value_matches tag ^kubernetes\.var\.log\.containers\.cloud-controller-manager-.+?_.+?_kubevirt-cloud-controller-manager
+        Add                 __gardener_multitenant_id__ operator;user
 
     [FILTER]
-        Name                rewrite_tag
+        Name                modify
         Match               kubernetes.*
-        Rule                $tag ^kubernetes\.var\.log\.containers\.machine-controller-manager-.+?_.+?_(kubevirt-machine-controller-manager|machine-controller-manager-provider-kubevirt) user-exposed.$TAG true
-        Emitter_Name        re_emitted-provider-kubevirt-mcm
+        Condition           Key_value_matches tag ^kubernetes\.var\.log\.containers\.machine-controller-manager-.+?_.+?_(kubevirt-machine-controller-manager|machine-controller-manager-provider-kubevirt)
+        Add                 __gardener_multitenant_id__ operator;user
