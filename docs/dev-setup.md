@@ -134,7 +134,7 @@ Once the provider cluster has been created (with Gardener or any other provision
     hack/kubevirt/install-kubevirt.sh
     ```
    
-2. Optionally, to use networking features, install [Multus CNI](https://intel.github.io/multus-cni/doc/quickstart.html) as described in its documentation, or by applying the provided [multus.yaml](../hack/kubevirt/multus.yaml) manifest.
+2. Optionally, to use networking features, install [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/quickstart.md) as described in its documentation, or by applying the provided [multus.yaml](../hack/kubevirt/multus.yaml) manifest.
 
     ```shell script
     export KUBECONFIG=dev/kubeconfig-gcp-vmx.yaml

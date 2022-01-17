@@ -17,7 +17,7 @@ Unlike other provider extensions, it does not include controllers for `BackupBuc
 Use the Gardener extension for your respective cloud provider to backup and restore your ETCD data. 
 On OpenShift clusters, use [Gardener extension for OpenShift provider](https://github.com/gardener/gardener-extension-provider-openshift). 
 
-For more information about Gardener integration with KubeVirt see [this gardener.cloud blog post](https://gardener.cloud/blog/2020-10/00/). 
+For more information about Gardener integration with KubeVirt see [this gardener.cloud blog post](https://gardener.cloud/blog/2020-10/00/gardener-integrates-with-kubevirt/). 
 
 An example for a `ControllerRegistration` resource that can be used to register the controllers of this extension with Gardener can be found [here](example/controller-registration.yaml).
 
